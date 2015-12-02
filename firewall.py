@@ -29,7 +29,6 @@ class Firewall:
         rule_file = open(filename)
         for rule in rule_file:
             rule = rule.split()
-            new_rule = {}
             if len(rule) < 1:
                 continue
             for i in range(len(rule)):
@@ -37,14 +36,18 @@ class Firewall:
             if rule[0] == '%':
                 continue
             if rule[1] == "tcp" or rule[1] == "udp" or rule[1] == "icmp":
-                new_rule["verdict"]     = rule[0]
-                new_rule["protocol"]    = rule[1]
-                new_rule["ext_ip"]      = rule[2]
-                new_rule["ext_port"]    = rule[3]
+                new_rule = {
+                    'verdict'  : rule[0],
+                    'protocol' : rule[1],
+                    'ext_ip'   : rule[2],
+                    'ext_port' : rule[3],
+                }
             elif rule[1] == "dns":
-                new_rule["verdict"]     = rule[0]
-                new_rule["protocol"]    = "dns"
-                new_rule["domain_name"] = rule[2]
+                new_rule = {
+                    'verdict'  : rule[0],
+                    'protocol' : 'dns',
+                    'domain_name' : rule[2],
+                }
             else:
                 # probably just a line of text, do nothing
                 continue
@@ -62,10 +65,11 @@ class Firewall:
             geo_line = geo_line.split()
             for i in range(len(geo_line)):
                 geo_line[i] = geo_line[i].lower()
-            new_geo = {}
-            new_geo['start_ip']     = geo_line[0]
-            new_geo['end_ip']       = geo_line[1]
-            new_geo['country_code'] = geo_line[2]
+            new_geo = {
+                'start_ip'     : geo_line[0],
+                'end_ip'       : geo_line[1],
+                'country_code' : geo_line[2],
+            }
             geos.append(new_geo)
         return geos
 

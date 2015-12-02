@@ -165,8 +165,11 @@ class Firewall:
 		otherwise.
 		"""
 		protocol = rule['protocol']
-		if protocol != packet.transport and protocol != 'dns':
-			return False
+		# DNS and HTTP have special cases handled below
+		if protocol != 'dns' and protocol != 'http':
+			# If protocol == TCP, UDP, or ICMP:
+			if protocol != packet.transport:
+				return False
 
 		# Determine external address/port based on packet direction
 		addr, port = external_address(packet)
@@ -177,6 +180,9 @@ class Firewall:
 				return False
 			dns = DNSHeader(packet.packet, packet.ip_header.header_len)
 			return matches_domain(rule['domain_name'], dns.domain_name)
+
+		if protocol == 'http':
+			pass
 
 		# Determine if packet external address matches rule
 		if not matches_address(addr, rule, self.geos):

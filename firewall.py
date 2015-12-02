@@ -179,30 +179,14 @@ class Firewall:
 			return matches_domain(rule['domain_name'], dns.domain_name)
 
 		# Determine if packet external address matches rule
-		addr_match = False
-		print rule
-		if rule['ext_ip'] == 'any':
-			addr_match = True
-		elif len(rule['ext_ip']) == 2: # Country code
-			addr_match = matches_country(self.geos, rule['ext_ip'], addr)
-		else:
-			addr_match = matches_prefix(rule['ext_ip'], addr)
-
-		if not addr_match:
+		if not matches_address(addr, rule, self.geos):
 			return False
 
 		# If the external address matches, determine if the port matches
-		if rule['ext_port'] == 'any':
-			return True
-		endpoints = rule['ext_port'].split('-')
-		if len(endpoints) == 2:
-			start = int(endpoints[0])
-			end = int(endpoints[1])
-			return start <= port and port <= end
-		elif len(endpoints) == 1:
-			return int(endpoints[0]) == port
-		else:
-			print "matching port; should be unreachable"
+		if not matches_port(port, rule):
+			return False
+
+		return True
 
 
 def external_address(packet):
@@ -224,6 +208,38 @@ def external_address(packet):
 """
 Helper functions for matching against an IP address.
 """
+
+def matches_address(addr, rule, geos):
+	"""
+	Return True if the given address 'addr' matches the external IP address
+	specified in the given rule, provided the given geographical IP mapping;
+	return False otherwise.
+	"""
+	if rule['ext_ip'] == 'any':
+		return True
+	elif len(rule['ext_ip']) == 2: # Country code
+		return matches_country(geos, rule['ext_ip'], addr)
+	else:
+		return matches_prefix(rule['ext_ip'], addr)
+
+
+def matches_port(port, rule):
+	"""
+	Return True if the given port number 'port' matches the external port specified
+	in the given rule; return False otherwise.
+	"""
+	if rule['ext_port'] == 'any':
+		return True
+	endpoints = rule['ext_port'].split('-')
+	if len(endpoints) == 2:
+		start = int(endpoints[0])
+		end = int(endpoints[1])
+		return start <= port and port <= end
+	elif len(endpoints) == 1:
+		return int(endpoints[0]) == port
+	else:
+		print "matching port; should be unreachable"
+
 
 def matches_country(geos, code, addr):
 	"""

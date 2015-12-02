@@ -15,7 +15,7 @@ from packet import (
 import socket
 import struct
 
-LOG_FILE = "http.log"
+DEFAULT_LOG = "http.log"
 
 
 # TODO: Feel free to import any Python standard moduless as necessary.
@@ -33,7 +33,11 @@ class Firewall:
 		# Load the GeoIP DB ('geoipdb.txt') as well.
 		self.geos = self.parse_geos('geoipdb.txt')
 
-		self.log_file = open(LOG_FILE, "w")
+		# Included so that a mock log file can be stubbed in during testing
+		if 'log' in config:
+			self.log = open(config['log'], 'w');
+		else:
+			self.log = open(DEFAULT_LOG, 'w')
 
 	def parse_rules(self, filename):
 		"""

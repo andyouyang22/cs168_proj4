@@ -212,6 +212,11 @@ class Firewall:
 			print "matching port; should be unreachable"
 
 
+
+"""
+Helper functions for matching against an IP address.
+"""
+
 def matches_country(geos, code, addr):
 	"""
 	Return True if the given address falls within a the given country's IP
@@ -262,6 +267,11 @@ def matches_prefix(prefix, addr):
 	return (addr >> shift) == (net >> shift)
 
 
+
+"""
+Helper functions for converting between dotted quad IP addresses and 32-bit ints.
+"""
+
 def ip_string_to_int(ip, prefix=32):
 	"""
 	Convert the given IP address from dotted quad to 32-bit int.
@@ -273,7 +283,6 @@ def ip_string_to_int(ip, prefix=32):
 	for i in range(4):
 		b[i] = int(b[i])
 	return (((((b[0] * 256) + b[1]) * 256) + b[2]) * 256) + b[3]
-
 
 def ip_int_to_string(ip):
 	"""

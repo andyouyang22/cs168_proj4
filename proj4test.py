@@ -5,9 +5,10 @@ from main import PKT_DIR_INCOMING, PKT_DIR_OUTGOING
 class TestFirewall(unittest.TestCase):
 
 	def setUp(self):
-		config = {}
-		config['mode'] = 'firewall'
-		config['rule'] = 'rules.conf'
+		config = {
+			'mode' : 'firewall',
+			'rule' : 'rules.conf',
+		}
 		iface_int = MockInterface()
 		iface_ext = MockInterface()
 		self.firewall = firewall.Firewall(config, iface_int, iface_ext)

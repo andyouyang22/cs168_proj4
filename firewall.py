@@ -157,6 +157,10 @@ class Firewall:
 				# Record the last rule that matches the packet
 				verdict = rule['verdict']
 
+		# In the case of 'deny', distinguish between 'deny-tcp' and 'deny-dns'
+		if verdict == 'deny':
+			return verdict + "-" + rule['protocol']
+
 		return verdict
 
 	def matches(self, rule, packet):

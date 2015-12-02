@@ -192,15 +192,11 @@ class Firewall:
 		if protocol == 'http':
 			pass
 
-		# Determine if packet external address matches rule
-		if not matches_address(addr, rule, self.geos):
-			return False
-
-		# If the external address matches, determine if the port matches
-		if not matches_port(port, rule):
-			return False
-
-		return True
+		# If both exteral address and port match the target, return True
+		if matches_address(addr, rule, self.geos):
+			if matches_port(port, rule):
+				return True
+		return False
 
 
 def external_address(packet):

@@ -169,14 +169,7 @@ class Firewall:
 			return False
 
 		# Determine external address/port based on packet direction
-		if packet.direction == PKT_DIR_INCOMING:
-			addr = packet.ip_header.src_addr
-			port = int(packet.transport_header.src_port)
-		elif packet.direction == PKT_DIR_OUTGOING:
-			addr = packet.ip_header.dst_addr
-			port = int(packet.transport_header.dst_port)
-		else:
-			print "determining addr and port; should be unreachable"
+		addr, port = external_address(packet)
 
 		# Handle the case where the rule has protocol DNS
 		if protocol == 'dns':
@@ -211,6 +204,21 @@ class Firewall:
 		else:
 			print "matching port; should be unreachable"
 
+
+def external_address(packet):
+	"""
+	Based on the direction of the given packet and address information stored in
+	its headers, return the external IP address and port number.
+	"""
+	if packet.direction == PKT_DIR_INCOMING:
+		addr = packet.ip_header.src_addr
+		port = int(packet.transport_header.src_port)
+	elif packet.direction == PKT_DIR_OUTGOING:
+		addr = packet.ip_header.dst_addr
+		port = int(packet.transport_header.dst_port)
+	else:
+		print "determining addr and port; should be unreachable"
+	return (addr, port)
 
 
 """

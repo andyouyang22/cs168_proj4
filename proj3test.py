@@ -13,9 +13,6 @@ class TestFirewall(unittest.TestCase):
 		iface_ext = MockInterface()
 		self.firewall = firewall.Firewall(config, iface_int, iface_ext)
 
-	def test_general(self):
-		return
-
 	def test_matches(self):
 		geos = self.firewall.geos
 		rule1 = {

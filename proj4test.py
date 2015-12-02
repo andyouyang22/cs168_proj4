@@ -13,9 +13,6 @@ class TestFirewall(unittest.TestCase):
 		iface_ext = MockInterface()
 		self.firewall = firewall.Firewall(config, iface_int, iface_ext)
 
-	def test_general(self):
-		return
-
 
 class MockInterface:
 	def __init__(self):

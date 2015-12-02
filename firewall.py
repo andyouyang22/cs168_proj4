@@ -31,6 +31,8 @@ class Firewall:
 		# Load the GeoIP DB ('geoipdb.txt') as well.
 		self.geos = self.parse_geos('geoipdb.txt')
 
+        self.log_file = open("http.log", "w")
+
 	def parse_rules(self, filename):
 		"""
 		Create an array of rules from the rules file specified in the firewall

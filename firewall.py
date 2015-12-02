@@ -33,7 +33,7 @@ class Firewall:
 		# Load the GeoIP DB ('geoipdb.txt') as well.
 		self.geos = self.parse_geos('geoipdb.txt')
 
-        self.log_file = open(LOG_FILE, "w")
+		self.log_file = open(LOG_FILE, "w")
 
 	def parse_rules(self, filename):
 		"""

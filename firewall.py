@@ -1,6 +1,9 @@
 #!/usr/bin/env python
 
-from main import PKT_DIR_INCOMING, PKT_DIR_OUTGOING
+from main import (
+	PKT_DIR_INCOMING,
+	PKT_DIR_OUTGOING,
+)
 from packet import (
 	Packet,
 	IPHeader,

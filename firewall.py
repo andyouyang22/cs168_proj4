@@ -94,8 +94,11 @@ class Firewall:
 		if verdict == 'pass':
 			self.pass_packet(pkt_dir, pkt)
 
-		if verdict == 'deny':
-			self.deny_packet(pkt_dir, pkt)
+		if verdict == 'deny-tcp':
+			self.denytcp_packet(pkt_dir, pkt)
+
+		if verdict == 'deny-dns':
+			self.denydns_packet(pkt_dir, pkt)
 
 		if verdict == 'log':
 			self.log_packet(pkt_dir, pkt)
@@ -112,7 +115,14 @@ class Firewall:
 		 elif pkt_dir == PKT_DIR_OUTGOING:
 			 self.iface_ext.send_ip_packet(pkt)
 
-	def deny_packet(self, pkt_dir, pkt):
+	def denytcp_packet(self, pkt_dir, pkt):
+		"""
+		Insert documentation here.
+		"""
+		# Temporary
+		self.pass_packet(pkt_dir, pkt)
+
+	def denydns_packet(self, pkt_dir, pkt):
 		"""
 		Insert documentation here.
 		"""

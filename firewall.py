@@ -133,6 +133,10 @@ class Firewall:
 		"""
 		Insert documentation here.
 		"""
+		# Log messages should be one line and space-delimited with this format:
+		# <host_name> <method> <path> <version> <status_code> <object_size>
+		# e.g. google.com GET / HTTP/1.1 301 209
+
 		# Temporary
 		self.pass_packet(pkt_dir, pkt)
 

@@ -1,7 +1,7 @@
 
 class Packet:
 	def __init__(self, pkt, pkt_dir):
-		self.packet = pkt
+		self.bytes = pkt
 		self.direction = pkt_dir
 		self.ip_header = IPHeader(pkt)
 		protocol = self.ip_header.protocol

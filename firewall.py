@@ -16,12 +16,12 @@ import parse
 import socket
 import struct
 
-DEFAULT_LOG = "http.log"
-
 
 # TODO: Feel free to import any Python standard moduless as necessary.
 # (http://docs.python.org/2/library/)
 # You must NOT use any 3rd-party libraries.
+
+DEFAULT_LOG = "http.log"
 
 class Firewall:
 	def __init__(self, config, iface_int, iface_ext):
@@ -109,6 +109,8 @@ class Firewall:
 
 		# Use f.flush!
 
+
+
 		# Temporary
 		self.pass_packet(pkt_dir, pkt)
 
@@ -154,7 +156,7 @@ class Firewall:
 		if protocol == 'dns':
 			if packet.transport != 'udp' or port != 53:
 				return False
-			dns = DNSHeader(packet.packet, packet.ip_header.header_len)
+			dns = DNSHeader(packet.bytes, packet.ip_header.header_len)
 			return matches_domain(rule['domain_name'], dns.domain_name)
 
 		# Handle the case where the rule has protocol HTTP
@@ -162,7 +164,7 @@ class Firewall:
 			if packet.transport != 'tcp' or port != 80:
 				return False
 			http = HTTPHeader(
-				packet.packet,
+				packet.bytes,
 				packet.ip_header.header_len,
 				packet.transport_header.offset * 4,
 			)
@@ -270,6 +272,8 @@ def matches_host_name(target, addr):
 	Return True if the given addr falls under the given target host name. This
 	target can be a domain name or a single IP address.
 	"""
+	if target == "*":
+		return True
 	if target == addr:
 		return True
 	if matches_domain(target, addr):

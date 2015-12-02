@@ -76,6 +76,13 @@ class Firewall:
 		"""
 		Insert documentation here.
 		"""
+		# TODO:
+		# - Drop 'pkt'
+		# - Create TCP packet
+		# - Set RST flag set to 1
+		# - Set dst to (src of 'pkt')
+		# - Implement and set checksum
+
 		# Temporary
 		self.pass_packet(pkt_dir, pkt)
 
@@ -83,6 +90,12 @@ class Firewall:
 		"""
 		Insert documentation here.
 		"""
+		# TODO:
+		# Drop 'pkt'
+		# If QTYPE == "AAAA", don't send response. Be done
+		# Otherwise, create DNS packet
+		# Send to internal interface pointing to fixed IP addr 169.229.49.130
+
 		# Temporary
 		self.pass_packet(pkt_dir, pkt)
 

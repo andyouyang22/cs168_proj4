@@ -78,10 +78,42 @@ class Firewall:
 	def handle_packet(self, pkt_dir, pkt):
 		# TODO: Your main firewall code will be here.
 		packet = Packet(pkt, pkt_dir)
-		if self.verdict(packet) == 'pass':
+		verdict = self.verdict(packet)
+
+		if verdict == 'pass':
 			self.pass_packet(pkt_dir, pkt)
 
+		if verdict == 'deny':
+			self.deny_packet(pkt_dir, pkt)
+
+		if verdict == 'log':
+			self.log_packet(pkt_dir, pkt)
+
 	# TODO: You can add more methods as you want.
+
+	def pass_packet(self, pkt_dir, pkt):
+		 """
+		 Pass the input packet 'pkt' to the correct destination network interface
+		 (INT or EXT) based on 'pkt_dir'. This code was copied from bypass.py.
+		 """
+		 if pkt_dir == PKT_DIR_INCOMING:
+			 self.iface_int.send_ip_packet(pkt)
+		 elif pkt_dir == PKT_DIR_OUTGOING:
+			 self.iface_ext.send_ip_packet(pkt)
+
+	def deny_packet(self, pkt_dir, pkt):
+		"""
+		Insert documentation here.
+		"""
+		# Temporary
+		self.pass_packet(pkt_dir, pkt)
+
+	def log_packet(self, pkt_dir, pkt):
+		"""
+		Insert documentation here.
+		"""
+		# Temporary
+		self.pass_packet(pkt_dir, pkt)
 
 	def verdict(self, packet):
 		"""
@@ -101,17 +133,6 @@ class Firewall:
 				verdict = rule['verdict']
 
 		return verdict
-
-	def pass_packet(self, pkt_dir, pkt):
-		 """
-		 Pass the input packet 'pkt' to the correct destination network interface
-		 (INT or EXT) based on 'pkt_dir'. This code was copied from bypass.py.
-		 """
-		 if pkt_dir == PKT_DIR_INCOMING:
-			 self.iface_int.send_ip_packet(pkt)
-		 elif pkt_dir == PKT_DIR_OUTGOING:
-			 self.iface_ext.send_ip_packet(pkt)
-
 
 	def matches(self, rule, packet):
 		"""

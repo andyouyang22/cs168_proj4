@@ -159,6 +159,10 @@ class Firewall:
 				# Record the last rule that matches the packet
 				verdict = rule['verdict']
 
+		# In the case of 'deny', distinguish between 'deny-tcp' and 'deny-dns'
+		if verdict == 'deny':
+			return verdict + "-" + rule['protocol']
+
 		return verdict
 
 	def matches(self, rule, packet):
@@ -167,18 +171,14 @@ class Firewall:
 		otherwise.
 		"""
 		protocol = rule['protocol']
-		if protocol != packet.transport and protocol != 'dns':
-			return False
+		# DNS and HTTP have special cases handled below
+		if protocol != 'dns' and protocol != 'http':
+			# If protocol == TCP, UDP, or ICMP:
+			if protocol != packet.transport:
+				return False
 
 		# Determine external address/port based on packet direction
-		if packet.direction == PKT_DIR_INCOMING:
-			addr = packet.ip_header.src_addr
-			port = int(packet.transport_header.src_port)
-		elif packet.direction == PKT_DIR_OUTGOING:
-			addr = packet.ip_header.dst_addr
-			port = int(packet.transport_header.dst_port)
-		else:
-			print "determining addr and port; should be unreachable"
+		addr, port = external_address(packet)
 
 		# Handle the case where the rule has protocol DNS
 		if protocol == 'dns':
@@ -187,31 +187,70 @@ class Firewall:
 			dns = DNSHeader(packet.packet, packet.ip_header.header_len)
 			return matches_domain(rule['domain_name'], dns.domain_name)
 
-		# Determine if packet external address matches rule
-		addr_match = False
-		print rule
-		if rule['ext_ip'] == 'any':
-			addr_match = True
-		elif len(rule['ext_ip']) == 2: # Country code
-			addr_match = matches_country(self.geos, rule['ext_ip'], addr)
-		else:
-			addr_match = matches_prefix(rule['ext_ip'], addr)
+		if protocol == 'http':
+			pass
 
-		if not addr_match:
+		# Determine if packet external address matches rule
+		if not matches_address(addr, rule, self.geos):
 			return False
 
 		# If the external address matches, determine if the port matches
-		if rule['ext_port'] == 'any':
-			return True
-		endpoints = rule['ext_port'].split('-')
-		if len(endpoints) == 2:
-			start = int(endpoints[0])
-			end = int(endpoints[1])
-			return start <= port and port <= end
-		elif len(endpoints) == 1:
-			return int(endpoints[0]) == port
-		else:
-			print "matching port; should be unreachable"
+		if not matches_port(port, rule):
+			return False
+
+		return True
+
+
+def external_address(packet):
+	"""
+	Based on the direction of the given packet and address information stored in
+	its headers, return the external IP address and port number.
+	"""
+	if packet.direction == PKT_DIR_INCOMING:
+		addr = packet.ip_header.src_addr
+		port = int(packet.transport_header.src_port)
+	elif packet.direction == PKT_DIR_OUTGOING:
+		addr = packet.ip_header.dst_addr
+		port = int(packet.transport_header.dst_port)
+	else:
+		print "determining addr and port; should be unreachable"
+	return (addr, port)
+
+
+"""
+Helper functions for matching against an IP address.
+"""
+
+def matches_address(addr, rule, geos):
+	"""
+	Return True if the given address 'addr' matches the external IP address
+	specified in the given rule, provided the given geographical IP mapping;
+	return False otherwise.
+	"""
+	if rule['ext_ip'] == 'any':
+		return True
+	elif len(rule['ext_ip']) == 2: # Country code
+		return matches_country(geos, rule['ext_ip'], addr)
+	else:
+		return matches_prefix(rule['ext_ip'], addr)
+
+
+def matches_port(port, rule):
+	"""
+	Return True if the given port number 'port' matches the external port specified
+	in the given rule; return False otherwise.
+	"""
+	if rule['ext_port'] == 'any':
+		return True
+	endpoints = rule['ext_port'].split('-')
+	if len(endpoints) == 2:
+		start = int(endpoints[0])
+		end = int(endpoints[1])
+		return start <= port and port <= end
+	elif len(endpoints) == 1:
+		return int(endpoints[0]) == port
+	else:
+		print "matching port; should be unreachable"
 
 
 def matches_country(geos, code, addr):
@@ -264,6 +303,11 @@ def matches_prefix(prefix, addr):
 	return (addr >> shift) == (net >> shift)
 
 
+
+"""
+Helper functions for converting between dotted quad IP addresses and 32-bit ints.
+"""
+
 def ip_string_to_int(ip, prefix=32):
 	"""
 	Convert the given IP address from dotted quad to 32-bit int.
@@ -275,7 +319,6 @@ def ip_string_to_int(ip, prefix=32):
 	for i in range(4):
 		b[i] = int(b[i])
 	return (((((b[0] * 256) + b[1]) * 256) + b[2]) * 256) + b[3]
-
 
 def ip_int_to_string(ip):
 	"""

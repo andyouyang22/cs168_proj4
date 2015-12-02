@@ -78,27 +78,29 @@ class Firewall:
 	def handle_packet(self, pkt_dir, pkt):
 		# TODO: Your main firewall code will be here.
 		packet = Packet(pkt, pkt_dir)
-		if self.should_pass(packet):
+		if self.verdict(packet) == 'pass':
 			self.pass_packet(pkt_dir, pkt)
 
 	# TODO: You can add more methods as you want.
 
-	def should_pass(self, packet):
+	def verdict(self, packet):
 		"""
-		Return True if the given packet should be passed (rather than dropped)
-		based on the rules specified in this firewall's config file; return False
-		otherwise.
+		Return the appropriate verdict ('pass', 'drop', 'deny', 'log') for the
+		given packet based on the rules specified in this firewall's config file.
+		Note that the packet will 'pass' if it matches no rules.
 		"""
+		# 'drop' if the IP header doesn't have adequate length
 		if packet.ip_header.header_len < 5:
-			return False
-		match = None
+			return 'drop'
+		# Default to 'pass'; this is returned if 'verdict' is not overwritten
+		verdict = 'pass'
+
 		for rule in self.rules:
 			if self.matches(rule, packet):
-				# Choose the last rule that matches the packet
-				match = rule
-		if match == None or match['verdict'] == 'pass':
-			return True
-		return False
+				# Record the last rule that matches the packet
+				verdict = rule['verdict']
+
+		return verdict
 
 	def pass_packet(self, pkt_dir, pkt):
 		 """

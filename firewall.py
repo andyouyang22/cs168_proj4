@@ -36,9 +36,9 @@ class Firewall:
 
 		# Included so that a mock log file can be stubbed in during testing
 		if 'log' in config:
-			self.log = open(config['log'], 'w');
+			self.log = open(config['log'], 'a');
 		else:
-			self.log = open(DEFAULT_LOG, 'w')
+			self.log = open(DEFAULT_LOG, 'a')
 
 
 	# @pkt_dir: either PKT_DIR_INCOMING or PKT_DIR_OUTGOING
@@ -93,6 +93,8 @@ class Firewall:
 		# Log messages should be one line and space-delimited with this format:
 		# <host_name> <method> <path> <version> <status_code> <object_size>
 		# e.g. google.com GET / HTTP/1.1 301 209
+
+		# Use f.flush!
 
 		# Temporary
 		self.pass_packet(pkt_dir, pkt)

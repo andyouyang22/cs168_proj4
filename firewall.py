@@ -166,7 +166,7 @@ class Firewall:
 				packet.ip_header.header_len,
 				packet.transport_header.offset * 4,
 			)
-			if http.host_name != None:
+			if hasattr(http, 'host_name') and http.host_name != None:
 				return matches_host_name(rule['host_name'], http.host_name)
 			# Use external address if host name not supplied in HTTP header
 			return matches_host(rule['host_name'], addr)

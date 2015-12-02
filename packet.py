@@ -119,6 +119,7 @@ class DNSHeader:
 		self.domain_name = self.domain_name[:-1]
 		self.qtype = struct.unpack("!H", pkt[curr:curr+2])
 
+
 class HTTPHeader:
     def __init__(self, pkt, ip_header_len, tcp_header_len):
         self.data = {}
@@ -129,6 +130,6 @@ class HTTPHeader:
                 info += struct.unpack("!C", pck[curr])
             info = info.split(':')
             self.data[info[0]] = info[1]
-            
+
 
 

@@ -142,11 +142,19 @@ class Firewall:
 			dns = DNSHeader(packet.packet, packet.ip_header.header_len)
 			return matches_domain(rule['domain_name'], dns.domain_name)
 
+		# Handle the case where the rule has protocol HTTP
 		if protocol == 'http':
 			if packet.transport != 'tcp' or port != 80:
 				return False
-			# http = HTTPHeader(packet.packet, ...)
-
+			http = HTTPHeader(
+				packet.packet,
+				packet.ip_header.header_len,
+				packet.transport_header.offset * 4,
+			)
+			if http.host_name != None:
+				return matches_host_name(rule['host_name'], http.host_name)
+			# Use external address if host name not supplied in HTTP header
+			return matches_host(rule['host_name'], addr)
 
 		# If both exteral address and port match the target, return True
 		if matches_address(addr, rule, self.geos):
@@ -245,9 +253,13 @@ def matches_domain(target, addr):
 def matches_host_name(target, addr):
 	"""
 	Return True if the given addr falls under the given target host name. This
-	target can be a domain name or a single IP address
+	target can be a domain name or a single IP address.
 	"""
-
+	if target == addr:
+		return True
+	if matches_domain(target, addr):
+		return True
+	return False
 
 
 def matches_prefix(prefix, addr):

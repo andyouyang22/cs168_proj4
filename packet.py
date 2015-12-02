@@ -130,3 +130,9 @@ class HTTPHeader:
 				info += struct.unpack("!C", pck[curr])
 			info = info.split(':')
 			self.data[info[0]] = info[1]
+	###
+	# Make sure there is a host_name field. From the specs:
+	#   "Use the value of Host request header field. If it is not present, use the
+	#   external IP address of the TCP connection."
+
+	# Also, if no host_name is provided in the header, set self.host_name = None

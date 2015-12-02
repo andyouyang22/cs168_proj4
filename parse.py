@@ -21,9 +21,15 @@ def rules(filename):
 			}
 		elif rule[1] == "dns":
 			new_rule = {
-				'verdict'  : rule[0],
-				'protocol' : 'dns',
+				'verdict'     : rule[0],
+				'protocol'    : 'dns',
 				'domain_name' : rule[2],
+			}
+		elif rule[1] == "http":
+			new_rule = {
+				'verdict'   : rule[0],
+				'protocol'  : 'http',
+				'host_name' : rule[2],
 			}
 		else:
 			# probably just a line of text, do nothing

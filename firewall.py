@@ -41,31 +41,33 @@ class Firewall:
 		packet = Packet(pkt, pkt_dir)
 		verdict = self.verdict(packet)
 
+		print "%6s - %s" % (verdict, packet)
+
 		if verdict == 'pass':
-			self.pass_packet(pkt_dir, pkt)
+			self.pass_packet(packet)
 
 		if verdict == 'deny-tcp':
-			self.denytcp_packet(pkt_dir, pkt)
+			self.denytcp_packet(packet)
 
 		if verdict == 'deny-dns':
-			self.denydns_packet(pkt_dir, pkt)
+			self.denydns_packet(packet)
 
 		if verdict == 'log':
-			self.log_packet(pkt_dir, pkt)
+			self.log_packet(packet)
 
 	# TODO: You can add more methods as you want.
 
-	def pass_packet(self, pkt_dir, pkt):
+	def pass_packet(self, packet):
 		 """
 		 Pass the input packet 'pkt' to the correct destination network interface
 		 (INT or EXT) based on 'pkt_dir'. This code was copied from bypass.py.
 		 """
-		 if pkt_dir == PKT_DIR_INCOMING:
-			 self.iface_int.send_ip_packet(pkt)
-		 elif pkt_dir == PKT_DIR_OUTGOING:
-			 self.iface_ext.send_ip_packet(pkt)
+		 if packet.direction == PKT_DIR_INCOMING:
+			 self.iface_int.send_ip_packet(packet.bytes)
+		 elif packet.direction == PKT_DIR_OUTGOING:
+			 self.iface_ext.send_ip_packet(packet.bytes)
 
-	def denytcp_packet(self, pkt_dir, pkt):
+	def denytcp_packet(self, packet):
 		"""
 		Insert documentation here.
 		"""
@@ -77,9 +79,9 @@ class Firewall:
 		# - Implement and set checksum
 
 		# Temporary
-		self.pass_packet(pkt_dir, pkt)
+		self.pass_packet(packet)
 
-	def denydns_packet(self, pkt_dir, pkt):
+	def denydns_packet(self, packet):
 		"""
 		Insert documentation here.
 		"""
@@ -90,9 +92,9 @@ class Firewall:
 		# Send to internal interface pointing to fixed IP addr 169.229.49.130
 
 		# Temporary
-		self.pass_packet(pkt_dir, pkt)
+		self.pass_packet(packet)
 
-	def log_packet(self, pkt_dir, pkt):
+	def log_packet(self, packet):
 		"""
 		Insert documentation here.
 		"""
@@ -102,10 +104,8 @@ class Firewall:
 
 		# Use f.flush!
 
-
-
 		# Temporary
-		self.pass_packet(pkt_dir, pkt)
+		self.pass_packet(packet)
 
 	def verdict(self, packet):
 		"""

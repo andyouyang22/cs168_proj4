@@ -286,15 +286,3 @@ def ip_string_to_int(ip, prefix=32):
 	for i in range(4):
 		b[i] = int(b[i])
 	return (((((b[0] * 256) + b[1]) * 256) + b[2]) * 256) + b[3]
-
-def ip_int_to_string(ip):
-	"""
-	Convert the given IP address from 32-bit int to dotted quad.
-	"""
-	if type(ip) == str:
-		return ip
-	b = [0, 0, 0, 0]
-	for i in range(4):
-		b[3-i] = ip % 256
-		ip /= 256
-	return "%s.%s.%s.%s" % (b[0], b[1], b[2], b[3])

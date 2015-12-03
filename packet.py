@@ -3,6 +3,8 @@ from main import (
 	PKT_DIR_INCOMING,
 	PKT_DIR_OUTGOING,
 )
+import socket
+import struct
 
 class Packet:
 	def __init__(self, pkt, pkt_dir):
@@ -14,13 +16,13 @@ class Packet:
 		self.transport_protocol = protocol
 		self.transport_header = header
 
-		protocol, header = self.determine_application_header()
-		self.application_protocol = protocol
-		self.application_header = header
-
 		addr, port = self.determine_external_address()
 		self.external_address = addr
 		self.external_port = port
+
+		protocol, header = self.determine_application_header()
+		self.application_protocol = protocol
+		self.application_header = header
 
 
 	def determine_external_address(self):
@@ -51,13 +53,13 @@ class Packet:
 
 		if protocol == 1:
 			protocol = 'icmp'
-			header = ICMPHeader(pkt, ip_header_len)
+			header = ICMPHeader(self.bytes, ip_header_len)
 		elif protocol == 6:
 			protocol = 'tcp'
-			header = TCPHeader(pkt, ip_header_len)
+			header = TCPHeader(self.bytes, ip_header_len)
 		elif protocol == 17:
 			protocol = 'udp'
-			header = UDPHeader(pkt, ip_header_len)
+			header = UDPHeader(self.bytes, ip_header_len)
 
 		return (protocol, header)
 
@@ -70,6 +72,9 @@ class Packet:
 		"""
 		protocol = None
 		header = None
+
+		# Note that IP and TCP header lengths are expressed in "words" (4 bytes)
+
 		if self.transport_protocol == 'udp' and self.external_port == 53:
 			protocol = 'dns'
 			header = DNSHeader(self.bytes, self.ip_header.header_len)
@@ -77,9 +82,9 @@ class Packet:
 		if self.transport_protocol == 'tcp' and self.external_port == 80:
 			protocol = 'http'
 			header = HTTPHeader(
-				packet.bytes,
-				packet.ip_header.header_len,
-				packet.transport_header.offset * 4,
+				self.bytes,
+				self.ip_header.header_len,
+				self.transport_header.offset,
 			)
 
 		return (protocol, header)
@@ -91,9 +96,25 @@ class Packet:
 		src_port = self.transport_header.src_port
 		dst_addr = ip_int_to_string(self.ip_header.dst_addr)
 		dst_port = self.transport_header.dst_port
-		src = "%s:%s" % (src_addr, src_port)
-		dst = "%s:%s" % (dst_addr, dst_port)
-		return "%s %s %20s -> %20s" % (direction, self.transport, src, dst)
+		return "%s %s %20s -> %20s" % (
+			direction, 
+			self.transport_protocol, 
+			"%s:%s" % (src_addr, src_port), 
+			"%s:%s" % (dst_addr, dst_port),
+		)
+
+
+def ip_int_to_string(ip):
+	"""
+	Convert the given IP address from 32-bit int to dotted quad.
+	"""
+	if type(ip) == str:
+		return ip
+	b = [0, 0, 0, 0]
+	for i in range(4):
+		b[3-i] = ip % 256
+		ip /= 256
+	return "%s.%s.%s.%s" % (b[0], b[1], b[2], b[3])
 
 
 """
@@ -193,6 +214,7 @@ class DNSHeader:
 
 class HTTPHeader:
 	def __init__(self, pkt, ip_header_len, tcp_header_len):
+		return
 		self.data = {}
 		curr = (ip_header_len * 4) + (tcp_header_len * 4)
 		while struct.unpack("!C", pkt[curr]) + struct.unpack("!C", pkt[curr+1]) != b("\r\n\r\n"):

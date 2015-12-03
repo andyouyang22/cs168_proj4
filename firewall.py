@@ -44,7 +44,7 @@ class Firewall:
 		print "%6s - %s" % (verdict, packet)
 
 		if verdict == 'pass':
-			self.pass_packet(packet)
+			self.pass_packet(packet.bytes)
 
 		if verdict == 'deny-tcp':
 			self.denytcp_packet(packet)
@@ -57,29 +57,32 @@ class Firewall:
 
 	# TODO: You can add more methods as you want.
 
-	def pass_packet(self, packet):
+	def pass_packet(self, pkt):
 		 """
 		 Pass the input packet 'pkt' to the correct destination network interface
 		 (INT or EXT) based on 'pkt_dir'. This code was copied from bypass.py.
 		 """
 		 if packet.direction == PKT_DIR_INCOMING:
-			 self.iface_int.send_ip_packet(packet.bytes)
+			 self.iface_int.send_ip_packet(pkt)
 		 elif packet.direction == PKT_DIR_OUTGOING:
-			 self.iface_ext.send_ip_packet(packet.bytes)
+			 self.iface_ext.send_ip_packet(pkt)
 
 	def denytcp_packet(self, packet):
 		"""
-		Insert documentation here.
+		Drop the packet. Respond with a TCP packet with the RST flag set to 1. This
+		will prevent the sending application from sending subsequent SYN packets.
 		"""
-		# TODO:
-		# - Drop 'pkt'
-		# - Create TCP packet
-		# - Set RST flag set to 1
-		# - Set dst to (src of 'pkt')
-		# - Implement and set checksum
+		# Create the IP/TCP response packet
+		rst = packet
 
-		# Temporary
-		self.pass_packet(packet)
+		# Set RST flag set to 1
+
+		# Set dst to (src of 'pkt')
+
+		# Implement and set checksum
+
+		# Send response to source address
+		self.pass_packet(rst)
 
 	def denydns_packet(self, packet):
 		"""
@@ -92,7 +95,7 @@ class Firewall:
 		# Send to internal interface pointing to fixed IP addr 169.229.49.130
 
 		# Temporary
-		self.pass_packet(packet)
+		self.pass_packet(packet.bytes)
 
 	def log_packet(self, packet):
 		"""
@@ -105,7 +108,7 @@ class Firewall:
 		# Use f.flush!
 
 		# Temporary
-		self.pass_packet(packet)
+		self.pass_packet(packet.bytes)
 
 	def verdict(self, packet):
 		"""
@@ -114,7 +117,7 @@ class Firewall:
 		Note that the packet will 'pass' if it matches no rules.
 		"""
 		# 'drop' if the IP header doesn't have adequate length
-		if packet.ip_header.header_len < 5:
+		if packet.ip_header.length < 5:
 			return 'drop'
 		# Default to 'pass'; this is returned if 'verdict' is not overwritten
 		verdict = 'pass'

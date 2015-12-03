@@ -4,14 +4,7 @@ from main import (
 	PKT_DIR_INCOMING,
 	PKT_DIR_OUTGOING,
 )
-from packet import (
-	Packet,
-	IPHeader,
-	TCPHeader,
-	UDPHeader,
-	ICMPHeader,
-	DNSHeader,
-)
+from packet import Packet
 import parse
 import socket
 import struct
@@ -146,28 +139,25 @@ class Firewall:
 		# DNS and HTTP have special cases handled below
 		if protocol != 'dns' and protocol != 'http':
 			# If protocol == TCP, UDP, or ICMP:
-			if protocol != packet.transport:
+			if protocol != packet.transport_protocol:
 				return False
 
 		# Determine external address/port based on packet direction
-		addr, port = external_address(packet)
+		addr = packet.external_address
+		port = packet.external_port
 
 		# Handle the case where the rule has protocol DNS
 		if protocol == 'dns':
-			if packet.transport != 'udp' or port != 53:
+			if packet.application_protocol != 'dns':
 				return False
-			dns = DNSHeader(packet.bytes, packet.ip_header.header_len)
+			dns = packet.application_header
 			return matches_domain(rule['domain_name'], dns.domain_name)
 
 		# Handle the case where the rule has protocol HTTP
 		if protocol == 'http':
-			if packet.transport != 'tcp' or port != 80:
+			if packet.application_protocol != 'http':
 				return False
-			http = HTTPHeader(
-				packet.bytes,
-				packet.ip_header.header_len,
-				packet.transport_header.offset * 4,
-			)
+			http = packet.application_header
 			if hasattr(http, 'host_name') and http.host_name != None:
 				return matches_host_name(rule['host_name'], http.host_name)
 			# Use external address if host name not supplied in HTTP header
@@ -178,22 +168,6 @@ class Firewall:
 			if matches_port(port, rule):
 				return True
 		return False
-
-
-def external_address(packet):
-	"""
-	Based on the direction of the given packet and address information stored in
-	its headers, return the external IP address and port number.
-	"""
-	if packet.direction == PKT_DIR_INCOMING:
-		addr = packet.ip_header.src_addr
-		port = int(packet.transport_header.src_port)
-	elif packet.direction == PKT_DIR_OUTGOING:
-		addr = packet.ip_header.dst_addr
-		port = int(packet.transport_header.dst_port)
-	else:
-		print "determining addr and port; should be unreachable"
-	return (addr, port)
 
 
 """

@@ -1,6 +1,10 @@
 import unittest
 import firewall
-from main import PKT_DIR_INCOMING, PKT_DIR_OUTGOING
+from main import (
+	PKT_DIR_INCOMING,
+	PKT_DIR_OUTGOING,
+)
+import packet
 
 class TestFirewall(unittest.TestCase):
 
@@ -26,12 +30,17 @@ class MockInterface:
 	def send_ip_packet(self, pkt):
 		self.packets.append(pkt)
 
-class MockPacket:
+class MockPacket(packet.Packet):
 	def __init__(self, packet):
 		self.direction = packet['direction']
 		self.ip_header = MockIPHeader(packet)
-		self.transport = packet['transport']
+
+		self.transport_protocol = packet['transport']
 		self.transport_header = MockTransportHeader(packet)
+
+		addr, port = self.determine_external_address()
+		self.external_address = addr
+		self.external_port = port
 
 class MockIPHeader:
 	def __init__(self, packet):

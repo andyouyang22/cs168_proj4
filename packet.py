@@ -1,20 +1,89 @@
 
+from main import (
+	PKT_DIR_INCOMING,
+	PKT_DIR_OUTGOING,
+)
+
 class Packet:
 	def __init__(self, pkt, pkt_dir):
 		self.bytes = pkt
 		self.direction = pkt_dir
 		self.ip_header = IPHeader(pkt)
+
+		protocol, header = self.determine_transport_header()
+		self.transport_protocol = protocol
+		self.transport_header = header
+
+		protocol, header = self.determine_application_header()
+		self.application_protocol = protocol
+		self.application_header = header
+
+		addr, port = self.determine_external_address()
+		self.external_address = addr
+		self.external_port = port
+
+
+	def determine_external_address(self):
+		"""
+		Based on the direction of this packet and address information stored in its
+		headers, return the external IP address and port number. Used only to
+		simplify Packet constructor.
+		"""
+		if self.direction == PKT_DIR_INCOMING:
+			addr = self.ip_header.src_addr
+			port = int(self.transport_header.src_port)
+		elif self.direction == PKT_DIR_OUTGOING:
+			addr = self.ip_header.dst_addr
+			port = int(self.transport_header.dst_port)
+		else:
+			print "determining addr and port; should be unreachable"
+
+		return (addr, port)
+
+	def determine_transport_header(self):
+		"""
+		Based on information parsed from the IP header, determine the appropriate
+		transport-layer header Class to use. Returns the protocol (string) and the
+		header (Header Class). Used only to simplify Packet constructor.
+		"""
 		protocol = self.ip_header.protocol
 		ip_header_len = self.ip_header.header_len
+
 		if protocol == 1:
-			self.transport = 'icmp'
-			self.transport_header = ICMPHeader(pkt, ip_header_len)
+			protocol = 'icmp'
+			header = ICMPHeader(pkt, ip_header_len)
 		elif protocol == 6:
-			self.transport = 'tcp'
-			self.transport_header = TCPHeader(pkt, ip_header_len)
+			protocol = 'tcp'
+			header = TCPHeader(pkt, ip_header_len)
 		elif protocol == 17:
-			self.transport = 'udp'
-			self.transport_header = UDPHeader(pkt, ip_header_len)
+			protocol = 'udp'
+			header = UDPHeader(pkt, ip_header_len)
+
+		return (protocol, header)
+
+	def determine_application_header(self):
+		"""
+		Based on transport protocol and external port, determine the appropriate
+		application-layer header Class to use, if any. Returns the protocol
+		(string) and the header (Header Class). Used only to simplify Packet
+		constructor.
+		"""
+		protocol = None
+		header = None
+		if self.transport_protocol == 'udp' and self.external_port == 53:
+			protocol = 'dns'
+			header = DNSHeader(self.bytes, self.ip_header.header_len)
+
+		if self.transport_protocol == 'tcp' and self.external_port == 80:
+			protocol = 'http'
+			header = HTTPHeader(
+				packet.bytes,
+				packet.ip_header.header_len,
+				packet.transport_header.offset * 4,
+			)
+
+		return (protocol, header)
+
 
 	def __str__(self):
 		direction = ("incoming" if self.direction == 0 else "outgoing")
@@ -26,6 +95,10 @@ class Packet:
 		dst = "%s:%s" % (dst_addr, dst_port)
 		return "%s %s %20s -> %20s" % (direction, self.transport, src, dst)
 
+
+"""
+Header classes used to parse fields from packet headers.
+"""
 
 class IPHeader:
 	def __init__(self, pkt):
@@ -45,8 +118,6 @@ class IPHeader:
 		self.ttl,       = struct.unpack('!B', pkt[8])
 		self.protocol,  = struct.unpack('!B', pkt[9])
 		self.checksum,  = struct.unpack('!H', pkt[10:12])
-		#struct.unpack('!L', pkt[12:16])
-		#struct.unpack('!L', pkt[16:20])
 		self.src_addr   = socket.inet_ntoa(pkt[12:16])
 		self.dst_addr   = socket.inet_ntoa(pkt[16:20])
 		end             = self.header_len * 4

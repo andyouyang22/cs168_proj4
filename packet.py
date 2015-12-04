@@ -268,10 +268,11 @@ class HTTPHeader:
     def log_info_incoming(self, pkt, start):
         curr = start
         self.host_name = None
-        while struct.unpack("!C", self.pkt.bytes[curr]) + struct.unpack("!C", self.pkt.bytes[curr+1]) != b("\r\n\r\n"):
+        while struct.unpack("!c", pkt[curr]) + struct.unpack("!c", pkt[curr+1]) != "\r\n\r\n":
             info = ""
-            while struct.unpack("!B", pkt[start])[0] != b("\r\n"):
-                info += struct.unpack("!C", pck[curr])[0]
+            while struct.unpack("!c", pkt[start])[0] != "\r\n":
+                info += struct.unpack("!c", pkt[curr])[0]
+                print info
             info = info.split(':')
             if len(info) == 1: ## first line
                 first_line = info.split()
@@ -280,20 +281,24 @@ class HTTPHeader:
                 self.version = first_line[2]
             elif info[0] == "Host":
                 self.host_name = info[1]
+            curr += 1
+            print info
 
     def log_info_outgoing(self, pkt, start):
         curr = start
         self.object_size = -1
-        while struct.unpack("!C", self.pkt.bytes[curr])[0] + struct.unpack("!C", self.pkt.bytes[curr+1])[0] != b("\r\n\r\n"):
+        while struct.unpack("!c", pkt[curr])[0] + struct.unpack("!c", pkt[curr+1])[0] != "\r\n\r\n":
             info = ""
-            while struct.unpack("!B", pkt[start])[0] != b("\r\n"):
-                info += struct.unpack("!C", pck[curr])[0]
+            while struct.unpack("!c", pkt[start])[0] != "\r\n":
+                info += struct.unpack("!c", pkt[curr])[0]
             info = info.split(':')
             if len(info) == 1:
                 self.version = info[2]
                 self.status_code = int(info[1])
             elif info[0] == "Content-Length":
                 self.object_size = int(info[1])
+            curr += 1
+            print info
 
 
 ###

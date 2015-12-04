@@ -24,6 +24,7 @@ class Packet:
         self.external_address = addr
         self.external_port = port
 
+        # If protocol is HTTP, application_header will store the packet payload
         protocol, header = self.determine_application_header()
         self.application_protocol = protocol
         self.application_header = header
@@ -83,13 +84,14 @@ class Packet:
             protocol = 'dns'
             header = DNSHeader(self.bytes, self.ip_header.length)
 
+        # If protocol is HTTP, header will store the packet payload
         if self.transport_protocol == 'tcp' and self.external_port == 80:
             protocol = 'http'
             # There will be no body if the packet is just a SYN or ACK
             ip = self.ip_header.length * 4
             tp = self.transport_header.length * 4
             if self.length > ip + tp:
-                header = HTTPHeader(self)
+                header = HTTPHeader(self.bytes[ip+tp:self.length])
 
         return (protocol, header)
 
@@ -186,21 +188,23 @@ class IPHeader:
 
 
 class TCPHeader:
-    def __init__(self, pkt):
-        self.bytes = pkt
+    def __init__(self, header):
+        self.bytes = header
 
-        self.src_port, = struct.unpack('!H', pkt[:2])
-        self.dst_port, = struct.unpack('!H', pkt[2:4])
-        self.seq,      = struct.unpack('!I', pkt[4:8])
-        off_res,       = struct.unpack('!B', pkt[12])
+        self.src_port, = struct.unpack('!H', header[:2])
+        self.dst_port, = struct.unpack('!H', header[2:4])
+        self.seq,      = struct.unpack('!I', header[4:8])
+        self.ack,      = struct.unpack('!I', header[8:12])
+        off_res,       = struct.unpack('!B', header[12])
         off_res_bits   = bin(off_res)
         self.length    = int(off_res_bits[:6], 2)
-        self.checksum, = struct.unpack('!H', pkt[16:18])
+        self.flags,    = struct.unpack('!B', header[13])
+        self.checksum, = struct.unpack('!H', header[16:18])
 
         end = self.length * 4
         self.options = None
         if self.length > 5:
-            self.options = pkt[20:end]
+            self.options = header[20:end]
 
     def clone(self):
         """
@@ -210,22 +214,22 @@ class TCPHeader:
 
 
 class UDPHeader:
-    def __init__(self, pkt):
-        self.bytes = pkt
+    def __init__(self, header):
+        self.bytes = header
 
-        self.src_port,  = struct.unpack('!H', pkt[:2])
-        self.dst_port,  = struct.unpack('!H', pkt[2:4])
-        self.length,    = struct.unpack('!H', pkt[4:6])
-        self.checksum   = struct.unpack('!H', pkt[6:8])
+        self.src_port,  = struct.unpack('!H', header[:2])
+        self.dst_port,  = struct.unpack('!H', header[2:4])
+        self.length,    = struct.unpack('!H', header[4:6])
+        self.checksum   = struct.unpack('!H', header[6:8])
 
 
 class ICMPHeader:
-    def __init__(self, pkt, ip_header_len):
+    def __init__(self, header):
         self.bytes = pkt
 
-        self.the_type, = struct.unpack('!B', pkt[0])
-        self.code,     = struct.unpack('!B', pkt[1])
-        self.checksum, = struct.unpack('!H', pkt[2:4])
+        self.the_type, = struct.unpack('!B', header[0])
+        self.code,     = struct.unpack('!B', header[1])
+        self.checksum, = struct.unpack('!H', header[2:4])
         self.src_port  = 0
         self.dst_port  = 0
 
@@ -254,65 +258,109 @@ class DNSHeader:
 
 
 class HTTPHeader:
-    def __init__(self, packet):
-        self.pkt = packet
-    	ip = packet.ip_header.length * 4
-    	tp = packet.transport_header.length * 4
-        curr = ip + tp
-        if packet.direction == PKT_DIR_INCOMING:
-            self.log_info_incoming(packet.bytes, curr)
-        else:
-            self.log_info_outgoing(packet.bytes, curr)
+    def __init__(self, pkt, direction):
+        # The contents of the HTTP packet in string form
+        self.data = binary_to_string(pkt)
+        self.body = ""
 
-    def log_info_incoming(self, pkt, start):
-        curr = start
-        self.host_name = None
-        while struct.unpack("!c", pkt[curr]) + struct.unpack("!c", pkt[curr+1]) != "\r\n\r\n":
-            info = ""
-            while struct.unpack("!c", pkt[start])[0] != "\r\n":
-                info += struct.unpack("!c", pkt[curr])[0]
-                print info
-            info = info.split(':')
-            if len(info) == 1: ## first line
-                first_line = info.split()
-                self.method = first_line[0]
-                self.path = first_line[1]
-                self.version = first_line[2]
-            elif info[0] == "Host":
-                self.host_name = info[1]
-            curr += 1
-            print info
+        self.direction = direction
 
-    def log_info_outgoing(self, pkt, start):
-        curr = start
+        # Whether or not the entire HTTP header has been received
+        self.parsed = self.data.find('\r\n\r\n') != -1
+
+        # Fields needed for 'log' verdict
+        self.host_name   = ""
+        self.method      = ""
+        self.path        = ""
+        self.version     = ""
+        self.status_code = ""
         self.object_size = -1
-        while struct.unpack("!c", pkt[curr])[0] + struct.unpack("!c", pkt[curr+1])[0] != "\r\n\r\n":
-            info = ""
-            while struct.unpack("!c", pkt[start])[0] != "\r\n":
-                info += struct.unpack("!c", pkt[curr])[0]
-            info = info.split(':')
-            if len(info) == 1:
-                self.version = info[2]
-                self.status_code = int(info[1])
-            elif info[0] == "Content-Length":
-                self.object_size = int(info[1])
-            curr += 1
-            print info
 
-def binary_to_string(binary, length):
+        self.parse()
+
+    @property
+    def length(self):
+        return len(self.data)
+
+
+    def append(self, data):
+        """
+        Append data from another TCP packet. Re-parse fields
+        """
+        if not self.parsed:
+            self.data += data
+            self.parse()
+
+    def parse(self):
+        """
+        Parse the data fields of this HTTP packet. Note that it is assumed that
+        the firewall's host will only be sending HTTP requests and not responses.
+        """
+        # Return if a full line has not yet been sent
+        if self.data.find('\r\n') == -1:
+            return
+
+        # Ignore HTTP body content (but record size)
+        end = self.data.find('\r\n\r\n')
+        if end >= 0:
+            self.data = self.data[:end]
+            if not self.parsed:
+                self.parsed = True
+
+        lines = self.data.split('\r\n')
+        tokens = lines[0].split(' ')
+
+        if self.direction == PKT_DIR_OUTGOING:
+            self.parse_outgoing()
+        else:
+            self.parse_incoming()
+
+
+    def parse_outgoing(self):
+        # Parse fields in the first line (e.g. "GET / HTTP/1.1")
+        end = self.data.find('\r\n')
+        tokens = self.data[:end].split(' ')
+        self.method  = tokens[0]
+        self.path    = tokens[1]
+        self.version = tokens[2]
+
+        # Find "Host" field if present
+        host = self.data.find("Host:")
+        if host != -1:
+            start = host + len("Host:")
+            frag = self.data[start:]
+            # Find the end of the line
+            end = frag.find('\r\n')
+            if end != -1:
+                # Trim leading/trailing whitespace if necessary
+                self.host_name = frag[:end].strip()
+
+
+    def parse_incoming(self):
+        # Parse fields in the first line (e.g. "HTTP/1.1 200 OK")
+        end = self.data.find('\r\n')
+        tokens = self.data[:end].split(' ')
+        self.version = tokens[0]
+        self.status_code = tokens[1]
+
+        # Find "Content-Length" field if present
+        size = self.data.find("Content-Length:")
+        if size != -1:
+            start = size + len("Content-Length")
+            frag = self.data[start:]
+            # Find the end of the line
+            end = frag.find('\r\n')
+            if end != -1:
+                # Trim leading/trailing whitespace if necessary
+                self.object_size = frag[:end].strip()
+
+
+def binary_to_string(binary):
     """
     Convert the given packed binary with the given length into an ASCII string.
     """
     result = ""
-    for i in range(length):
+    for i in range(len(binary)):
         ch = struct.unpack("!c", binary[i])[0]
         results += ch
     return result
-
-
-###
-# Make sure there is a host_name field. From the specs:
-#   "Use the value of Host request header field. If it is not present, use the
-#   external IP address of the TCP connection."
-
-# Also, if no host_name is provided in the header, set self.host_name = None

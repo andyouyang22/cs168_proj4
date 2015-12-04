@@ -27,7 +27,7 @@ class Firewall:
         # Load the GeoIP DB ('geoipdb.txt') as well.
         self.geos = parse.geos('geoipdb.txt')
 
-        # Map TCP SEQ number to corresponding persistent HTTP connection
+        # Map TCP SEQ number to corresponding persistent HTTP connection data
         self.conns = {}
 
         # Included so that a mock log file can be stubbed in during testing
@@ -120,25 +120,42 @@ class Firewall:
         Log messages should be one line and space-delimited with this format:
         <host_name> <method> <path> <version> <status_code> <object_size>
         """
+        assert packet.transport_protocol == 'tcp'  # Remove later
+
+        tcp = packet.transport_header
+        http = packet.application_header
 
         if packet.direction == PKT_DIR_OUTGOING:
-            seq = packet.transport_header.seq
-            http_header = HTTPHeader(packet)
-            self.conns[seq_hum] = http_header
+            # If SYN packet, create TCP connection state dict
+            if tcp.flags & 0x02:
+                self.conns[tcp.seq+1] = {
+                    'seq'  : tcp.seq,
+                    'ack'  : -1,
+                    'req'  : http,
+                    'res'  : None,
+                }
+                return
+
+            conn = self.conns[tcp.ack]
+
         else:
-            resp_header = HTTPHeader(packet)
-            req_seq = packet.tcp_header.seq - 1
-            req_header = self.conns[req_seq]
-            log_line = "%s %s %s %s %s %s" % (
-                req_header.host_name,
-                req_header.method,
-                req_header.path,
-                req_header.version,
-                resp_header.status_code,
-                resp_header.object_size
-            )
-            self.log_file.write(log_line)
-            log_file.flush()
+            conn = self.conns[tcp.ack]
+
+            # If SYN ACK packet, update TCP connection state dict
+            if tcp.flags & 0x02:
+                conn['ack'] = tcp.ack
+
+            if tcp.flags & 0x01:
+                line = "%s %s %s %s %s %s" % (
+                    req.host_name,
+                    req.method,
+                    req.path,
+                    req.version,
+                    res.status_code,
+                    res.object_size
+                )
+                self.log_file.write(line)
+                self.log_file.flush()
 
 
     def verdict(self, packet):

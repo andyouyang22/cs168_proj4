@@ -27,6 +27,8 @@ class Firewall:
 		# Load the GeoIP DB ('geoipdb.txt') as well.
 		self.geos = parse.geos('geoipdb.txt')
 
+        self.seq_num_to_http = {}
+
 		# Included so that a mock log file can be stubbed in during testing
 		if 'log' in config:
 			self.log = open(config['log'], 'a');
@@ -109,7 +111,7 @@ class Firewall:
 
 	def log_packet(self, packet):
 		"""
-		Insert documentation here.
+        We only want to log transactions, so we only do the log on response and otherwise we just store info
 		"""
 		# Log messages should be one line and space-delimited with this format:
 		# <host_name> <method> <path> <version> <status_code> <object_size>
@@ -118,7 +120,18 @@ class Firewall:
 		# Use f.flush!
 
 		# Temporary
-		self.pass_packet(packet.bytes, packet.direction)
+		if packet.direction == PKT_DIR_OUTGOING:
+            seq_num = packet.tcp_header.seq_num
+            http_header = HTTPHeader(packet)
+            self.seq_num_to_http[seq_hum] = http_header
+        else:
+            resp_header = HTTPHeader(packet)
+            req_seq_num = packet.tcp_header.seq_num - 1
+            req_header = self.seq_num_to_http[req_seq_num]
+            log_line = "%s %s %s %s %s %s" % (req_header.host_name, req_header.method, req_header.path, req_header.version, resp_header.status_code, resp_header.object_size)
+            self.log_file.write(log_line)
+            log_file.flush()
+
 
 	def verdict(self, packet):
 		"""

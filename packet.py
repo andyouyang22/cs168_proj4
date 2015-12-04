@@ -254,7 +254,7 @@ class DNSHeader:
 class HTTPHeader:
     def __init__(self, pkt, ip_header_len, tcp_header_len):
         curr = (ip_header_len * 4) + (tcp_header_len * 4)
-        if pkt.direction = PKT_DIR_INCOMING:
+        if pkt.direction == PKT_DIR_INCOMING:
             self.log_info_incoming(curr)
         else:
             self.log_info_outgoing(curr)

@@ -120,7 +120,6 @@ class Packet:
 			"%s:%s" % (dst_addr, dst_port),
 		)
 
-
 def ip_int_to_string(ip):
 	"""
 	Convert the given IP address from 32-bit int to dotted quad.
@@ -132,6 +131,28 @@ def ip_int_to_string(ip):
 		b[3-i] = ip % 256
 		ip /= 256
 	return "%s.%s.%s.%s" % (b[0], b[1], b[2], b[3])
+
+
+def checksum(data, length):
+	"""
+	Compute a checksum for the given binary data with the given length (in bytes).
+	"""
+	# Initialize checksum to empty 32-bit buffer
+	checksum = 0x00000000
+
+	# Append a zero byte if length is odd
+	if (length & 1):
+		data = data + '\x00'
+
+	# Calculate value of 16-bit word and add to cumulative checksum
+	for i in range(0, length, 2):
+		word = struct.unpack("!H", data[i:i+2])
+		checksum += word
+
+	# "Fold" 32-bit checksum into 16-bit word by adding two 16-bit halves
+	checksum = (checksum >> 16) + (checksum & 0xffff)
+
+	return checksum
 
 
 """

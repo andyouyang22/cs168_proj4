@@ -254,40 +254,40 @@ class DNSHeader:
 class HTTPHeader:
 	def __init__(self, pkt, ip_header_len, tcp_header_len):
 		curr = (ip_header_len * 4) + (tcp_header_len * 4)
-        if pkt.direction = PKT_DIR_INCOMING:
-            self.log_info_incoming(curr)
-        else:
-            self.log_info_outgoing(curr)
+		if pkt.direction = PKT_DIR_INCOMING:
+			self.log_info_incoming(curr)
+		else:
+			self.log_info_outgoing(curr)
 
-    def log_info_incoming(self, start):
-        curr = start
-        self.host_name = None
-        while struct.unpack("!C", pkt[curr]) + struct.unpack("!C", pkt[curr+1]) != b("\r\n\r\n"):
-            info = ""
-            while struct.unpack("!B", pkt[start]) != b("\r\n"):
-                info += struct.unpack("!C", pck[curr])
-            info = info.split(':')
-            if len(info) == 1: ## first line
-                first_line = info.split()
-                self.method = first_line[0]
-                self.path = first_line[1]
-                self.version = first_line[2]
-            elif info[0] == "Host":
-                self.host_name = info[1]
+	def log_info_incoming(self, start):
+		curr = start
+		self.host_name = None
+		while struct.unpack("!C", pkt[curr]) + struct.unpack("!C", pkt[curr+1]) != b("\r\n\r\n"):
+			info = ""
+			while struct.unpack("!B", pkt[start]) != b("\r\n"):
+				info += struct.unpack("!C", pck[curr])
+			info = info.split(':')
+			if len(info) == 1: ## first line
+				first_line = info.split()
+				self.method = first_line[0]
+				self.path = first_line[1]
+				self.version = first_line[2]
+			elif info[0] == "Host":
+				self.host_name = info[1]
 
-    def log_info_outgoing(self, start):
-         curr = start
-         self.object_size = -1
-         while struct.unpack("!C", pkt[curr]) + struct.unpack("!C", pkt[curr+1]) != b("\r\n\r\n"):
-             info = ""
-             while struct.unpack("!B", pkt[start]) != b("\r\n"):
-                 info += struct.unpack("!C", pck[curr])
-             info = info.split(':')
-             if len(info) == 1:
-                self.version = info[2]
-                self.status_code = int(info[1])
-             elif info[0] == "Content-Length":
-                self.object_size = int(info[1])
+	def log_info_outgoing(self, start):
+		curr = start
+		self.object_size = -1
+		while struct.unpack("!C", pkt[curr]) + struct.unpack("!C", pkt[curr+1]) != b("\r\n\r\n"):
+			info = ""
+			while struct.unpack("!B", pkt[start]) != b("\r\n"):
+				info += struct.unpack("!C", pck[curr])
+			info = info.split(':')
+			if len(info) == 1:
+				self.version = info[2]
+				self.status_code = int(info[1])
+			elif info[0] == "Content-Length":
+				self.object_size = int(info[1])
 
 
 ###

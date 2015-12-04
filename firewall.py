@@ -44,7 +44,7 @@ class Firewall:
 		print "%6s - %s" % (verdict, packet)
 
 		if verdict == 'pass':
-			self.pass_packet(packet.bytes)
+			self.pass_packet(packet.bytes, packet.direction)
 
 		if verdict == 'deny-tcp':
 			self.denytcp_packet(packet)
@@ -57,14 +57,14 @@ class Firewall:
 
 	# TODO: You can add more methods as you want.
 
-	def pass_packet(self, pkt):
+	def pass_packet(self, pkt, pkt_dir):
 		 """
 		 Pass the input packet 'pkt' to the correct destination network interface
 		 (INT or EXT) based on 'pkt_dir'. This code was copied from bypass.py.
 		 """
-		 if packet.direction == PKT_DIR_INCOMING:
+		 if pkt_dir == PKT_DIR_INCOMING:
 			 self.iface_int.send_ip_packet(pkt)
-		 elif packet.direction == PKT_DIR_OUTGOING:
+		 elif pkt_dir == PKT_DIR_OUTGOING:
 			 self.iface_ext.send_ip_packet(pkt)
 
 	def denytcp_packet(self, packet):
@@ -72,17 +72,27 @@ class Firewall:
 		Drop the packet. Respond with a TCP packet with the RST flag set to 1. This
 		will prevent the sending application from sending subsequent SYN packets.
 		"""
-		# Create the IP/TCP response packet
-		rst = packet
+		if packet.direction != PKT_DIR_INCOMING:
+			return
 
-		# Set RST flag set to 1
+		# Set RST (0x04) and ACK (0x10) flags
+		packet.transport_header.tcp_flags = 0x14
 
 		# Set dst to (src of 'pkt')
+		my_addr = packet.ip_header.dst_addr
+		my_port = packet.transport_header.dst_port
+		dst_addr = packet.ip_header.src_addr
+		dst_port = packet.transport_header.src_port
+
+		packet.ip_header.src_addr = my_addr
+		packet.transport_header.src_port = my_port
+		packet.ip_header.dst_addr = dst_addr
+		packet.transport_header.dst_port = dst_port
 
 		# Implement and set checksum
 
 		# Send response to source address
-		self.pass_packet(rst)
+		self.pass_packet(packet.structify(), packet.direction)
 
 	def denydns_packet(self, packet):
 		"""
@@ -95,7 +105,7 @@ class Firewall:
 		# Send to internal interface pointing to fixed IP addr 169.229.49.130
 
 		# Temporary
-		self.pass_packet(packet.bytes)
+		self.pass_packet(packet.bytes, packet.direction)
 
 	def log_packet(self, packet):
 		"""
@@ -108,7 +118,7 @@ class Firewall:
 		# Use f.flush!
 
 		# Temporary
-		self.pass_packet(packet.bytes)
+		self.pass_packet(packet.bytes, packet.direction)
 
 	def verdict(self, packet):
 		"""

@@ -10,7 +10,11 @@ class Packet:
 	def __init__(self, pkt, pkt_dir):
 		self.bytes = pkt
 		self.direction = pkt_dir
+
 		self.ip_header = IPHeader(pkt)
+		self.length = self.ip_header.total_len
+
+		assert(len(self.bytes) == self.length)  # Remove later
 
 		protocol, header = self.determine_transport_header()
 		self.transport_protocol = protocol
@@ -49,7 +53,7 @@ class Packet:
 		header (Header Class). Used only to simplify Packet constructor.
 		"""
 		protocol = self.ip_header.protocol
-		ip_header_len = self.ip_header.header_len
+		ip_header_len = self.ip_header.length
 
 		if protocol == 1:
 			protocol = 'icmp'
@@ -77,17 +81,30 @@ class Packet:
 
 		if self.transport_protocol == 'udp' and self.external_port == 53:
 			protocol = 'dns'
-			header = DNSHeader(self.bytes, self.ip_header.header_len)
+			header = DNSHeader(self.bytes, self.ip_header.length)
 
 		if self.transport_protocol == 'tcp' and self.external_port == 80:
 			protocol = 'http'
 			header = HTTPHeader(
 				self.bytes,
-				self.ip_header.header_len,
+				self.ip_header.length,
 				self.transport_header.offset,
 			)
 
 		return (protocol, header)
+
+	def clone(self):
+		"""
+		Clones the current state of the packet header fields and returns a byte-
+		string representation of the packet.
+		"""
+		clone = self.bytes
+		ip = self.ip_header.clone()
+		tp = self.transport_header.clone()
+
+		assert len(ip) + len(tp) < self.length  # Remove later
+
+		return ip + tp + clone[len(ip)+len(tp):]
 
 
 	def __str__(self):
@@ -97,9 +114,9 @@ class Packet:
 		dst_addr = ip_int_to_string(self.ip_header.dst_addr)
 		dst_port = self.transport_header.dst_port
 		return "%s %s %20s -> %20s" % (
-			direction, 
-			self.transport_protocol, 
-			"%s:%s" % (src_addr, src_port), 
+			direction,
+			self.transport_protocol,
+			"%s:%s" % (src_addr, src_port),
 			"%s:%s" % (dst_addr, dst_port),
 		)
 
@@ -123,56 +140,56 @@ Header classes used to parse fields from packet headers.
 
 class IPHeader:
 	def __init__(self, pkt):
-		first,          = struct.unpack('!B', pkt[0])
-		first           = bin(first)
-		ip_frag_bits    = bin(struct.unpack('!H', pkt[6:8])[0])
-		if ip_frag_bits == "0b0":
-			ip_frag_bits = "0b0000000000000000"
+		first, = struct.unpack('!B', pkt[0])
+		first  = bin(first)
 
-		self.version    = int(first[2:6], 2)
-		self.header_len = int(first[6:], 2)
-		self.tos,       = struct.unpack('!B', pkt[1])
+		self.length     = int(first[6:], 2)
 		self.total_len, = struct.unpack('!H', pkt[2:4])
-		self.ident,     = struct.unpack('!H', pkt[4:6])
-		self.ip_flags   = int(ip_frag_bits[:5], 2)
-		self.frag       = int(ip_frag_bits[5:], 2)
-		self.ttl,       = struct.unpack('!B', pkt[8])
 		self.protocol,  = struct.unpack('!B', pkt[9])
 		self.checksum,  = struct.unpack('!H', pkt[10:12])
 		self.src_addr   = socket.inet_ntoa(pkt[12:16])
 		self.dst_addr   = socket.inet_ntoa(pkt[16:20])
-		end             = self.header_len * 4
+
+		end = self.length * 4
 		self.options = None
-		if self.header_len > 5:
+		if self.length > 5:
 			self.options = pkt[20:end]
+
+	def clone(self):
+		"""
+		Clones the current state of the packet header fields and returns a byte-
+		string representation of the packet.
+		"""
+
 
 
 class TCPHeader:
 	def __init__(self, pkt, ip_header_len):
-		start           = ip_header_len * 4
-		self.src_port,  = struct.unpack('!H', pkt[start:start+2])
-		self.dst_port,  = struct.unpack('!H', pkt[start+2:start+4])
-		self.seq_num,   = struct.unpack('!L', pkt[start+4:start+8])
-		self.ack_num,   = struct.unpack('!L', pkt[start+8:start+12])
+		start = ip_header_len * 4
 
-		off_res,        = struct.unpack('!B', pkt[start+12])
-		off_res_bits    = bin(off_res)
-		self.offset     = int(off_res_bits[:6], 2)
-		self.reserved   = int(off_res_bits[6:], 2)
+		self.src_port, = struct.unpack('!H', pkt[start:start+2])
+		self.dst_port, = struct.unpack('!H', pkt[start+2:start+4])
+		off_res,       = struct.unpack('!B', pkt[start+12])
+		off_res_bits   = bin(off_res)
+		self.offset    = int(off_res_bits[:6], 2)
+		self.checksum, = struct.unpack('!H', pkt[start+16:start+18])
 
-		self.tcp_flags, = struct.unpack('!B', pkt[start+13])
-		self.window,    = struct.unpack('!H', pkt[start+14:start+16])
-		self.checksum,  = struct.unpack('!H', pkt[start+16:start+18])
-		self.urgent_pointer, = struct.unpack('!H', pkt[start+18:start+20])
-		end             = self.offset * 4
-		self.options    = None
+		end = self.offset * 4
+		self.options = None
 		if self.offset > 5:
-		   self.options = pkt[start + 20 : start + end]
+			self.options = pkt[start + 20 : start + end]
+
+	def clone(self):
+		"""
+		Clones the current state of the packet header fields and returns a byte-
+		string representation of the packet.
+		"""
 
 
 class UDPHeader:
 	def __init__(self, pkt, ip_header_len):
-		start           = ip_header_len * 4
+		start = ip_header_len * 4
+
 		self.src_port,  = struct.unpack('!H', pkt[start:start+2])
 		self.dst_port,  = struct.unpack('!H', pkt[start+2:start+4])
 		self.length,    = struct.unpack('!H', pkt[start+4:start+6])
@@ -181,11 +198,11 @@ class UDPHeader:
 
 class ICMPHeader:
 	def __init__(self, pkt, ip_header_len):
-		start          = ip_header_len * 4
+		start= ip_header_len * 4
+
 		self.the_type, = struct.unpack('!B', pkt[start])
 		self.code,     = struct.unpack('!B', pkt[start+1])
 		self.checksum, = struct.unpack('!H', pkt[start+2:start+4])
-		self.other,    = struct.unpack('!L', pkt[start+4:start+8])
 		self.src_port  = 0
 		self.dst_port  = 0
 
@@ -193,6 +210,7 @@ class ICMPHeader:
 class DNSHeader:
 	def __init__(self, pkt, ip_header_len):
 		start = (ip_header_len * 4) + 8
+
 		self.qdcount = struct.unpack("!H", pkt[start+4:start+6])
 		self.ancount = struct.unpack("!H", pkt[start+6:start+8])
 

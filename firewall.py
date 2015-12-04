@@ -93,7 +93,7 @@ class Firewall:
         packet.ip_header.dst_addr = dst_addr
         packet.transport_header.dst_port = dst_port
 
-        # Calculate and set the checksum field
+        # Calculate and set the checksum fields (performed in packet.structify)
 
         # Convert the packet to a packed binary and send response to source
         self.pass_packet(packet.structify(), PKT_DIR_OUTGOING)

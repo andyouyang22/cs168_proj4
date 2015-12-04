@@ -300,6 +300,16 @@ class HTTPHeader:
             curr += 1
             print info
 
+def binary_to_string(binary, length):
+    """
+    Convert the given packed binary with the given length into an ASCII string.
+    """
+    result = ""
+    for i in range(length):
+        ch = struct.unpack("!c", binary[i])[0]
+        results += ch
+    return result
+
 
 ###
 # Make sure there is a host_name field. From the specs:

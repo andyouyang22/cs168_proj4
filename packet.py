@@ -85,6 +85,8 @@ class Packet:
 
         if self.transport_protocol == 'tcp' and self.external_port == 80:
             protocol = 'http'
+            # There will be no body if the packet is just a SYN or ACK
+            if self.length > self.ip_header.length + self.transport_header.length:
                 header = HTTPHeader(self)
 
         return (protocol, header)

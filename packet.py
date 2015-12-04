@@ -86,7 +86,7 @@ class Packet:
         if self.transport_protocol == 'tcp' and self.external_port == 80:
             protocol = 'http'
             header = HTTPHeader(
-                self.bytes,
+                self,
                 self.ip_header.length,
                 self.transport_header.offset,
             )
@@ -254,6 +254,7 @@ class DNSHeader:
 
 class HTTPHeader:
     def __init__(self, pkt, ip_header_len, tcp_header_len):
+        self.pkt = pkt
         curr = (ip_header_len * 4) + (tcp_header_len * 4)
         if pkt.direction == PKT_DIR_INCOMING:
             self.log_info_incoming(curr)
@@ -263,10 +264,10 @@ class HTTPHeader:
     def log_info_incoming(self, start):
         curr = start
         self.host_name = None
-        while struct.unpack("!C", pkt[curr]) + struct.unpack("!C", pkt[curr+1]) != b("\r\n\r\n"):
+        while struct.unpack("!C", self.pkt.bytes[curr]) + struct.unpack("!C", self.pkt.bytes[curr+1]) != b("\r\n\r\n"):
             info = ""
-            while struct.unpack("!B", pkt[start]) != b("\r\n"):
-                info += struct.unpack("!C", pck[curr])
+            while struct.unpack("!B", pkt[start])[0] != b("\r\n"):
+                info += struct.unpack("!C", pck[curr])[0]
             info = info.split(':')
             if len(info) == 1: ## first line
                 first_line = info.split()
@@ -279,7 +280,7 @@ class HTTPHeader:
     def log_info_outgoing(self, start):
         curr = start
         self.object_size = -1
-        while struct.unpack("!C", pkt[curr]) + struct.unpack("!C", pkt[curr+1]) != b("\r\n\r\n"):
+        while struct.unpack("!C", self.pkt.bytes[curr]) + struct.unpack("!C", self.pkt.bytes[curr+1]) != b("\r\n\r\n"):
             info = ""
             while struct.unpack("!B", pkt[start]) != b("\r\n"):
                 info += struct.unpack("!C", pck[curr])

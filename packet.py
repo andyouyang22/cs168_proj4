@@ -85,11 +85,7 @@ class Packet:
 
         if self.transport_protocol == 'tcp' and self.external_port == 80:
             protocol = 'http'
-            header = HTTPHeader(
-                self,
-                self.ip_header.length,
-                self.transport_header.offset,
-            )
+                header = HTTPHeader(self)
 
         return (protocol, header)
 
@@ -193,12 +189,12 @@ class TCPHeader:
         self.dst_port, = struct.unpack('!H', pkt[start+2:start+4])
         off_res,       = struct.unpack('!B', pkt[start+12])
         off_res_bits   = bin(off_res)
-        self.offset    = int(off_res_bits[:6], 2)
+        self.length    = int(off_res_bits[:6], 2)
         self.checksum, = struct.unpack('!H', pkt[start+16:start+18])
 
-        end = self.offset * 4
+        end = self.length * 4
         self.options = None
-        if self.offset > 5:
+        if self.length > 5:
             self.options = pkt[start + 20 : start + end]
 
     def clone(self):
@@ -253,15 +249,19 @@ class DNSHeader:
 
 
 class HTTPHeader:
-    def __init__(self, pkt, ip_header_len, tcp_header_len):
-        self.pkt = pkt
-        curr = (ip_header_len * 4) + (tcp_header_len * 4)
-        if pkt.direction == PKT_DIR_INCOMING:
-            self.log_info_incoming(curr)
+    def __init__(self, packet):
+        self.pkt = packet
+    	ip = packet.ip_header.length * 4
+    	tp = packet.transport_header.length * 4
+        curr = ip + tp
+        print "curr is %s" % curr
+        print "total len is %s" % packet.length
+        if packet.direction == PKT_DIR_INCOMING:
+            self.log_info_incoming(packet.bytes, curr)
         else:
-            self.log_info_outgoing(curr)
+            self.log_info_outgoing(packet.bytes, curr)
 
-    def log_info_incoming(self, start):
+    def log_info_incoming(self, pkt, start):
         curr = start
         self.host_name = None
         while struct.unpack("!C", self.pkt.bytes[curr]) + struct.unpack("!C", self.pkt.bytes[curr+1]) != b("\r\n\r\n"):
@@ -277,13 +277,13 @@ class HTTPHeader:
             elif info[0] == "Host":
                 self.host_name = info[1]
 
-    def log_info_outgoing(self, start):
+    def log_info_outgoing(self, pkt, start):
         curr = start
         self.object_size = -1
-        while struct.unpack("!C", self.pkt.bytes[curr]) + struct.unpack("!C", self.pkt.bytes[curr+1]) != b("\r\n\r\n"):
+        while struct.unpack("!C", self.pkt.bytes[curr])[0] + struct.unpack("!C", self.pkt.bytes[curr+1])[0] != b("\r\n\r\n"):
             info = ""
-            while struct.unpack("!B", pkt[start]) != b("\r\n"):
-                info += struct.unpack("!C", pck[curr])
+            while struct.unpack("!B", pkt[start])[0] != b("\r\n"):
+                info += struct.unpack("!C", pck[curr])[0]
             info = info.split(':')
             if len(info) == 1:
                 self.version = info[2]

@@ -4,7 +4,7 @@ from main import (
 	PKT_DIR_INCOMING,
 	PKT_DIR_OUTGOING,
 )
-from packet import Packet
+from packet import Packet, checksum
 import parse
 import socket
 import struct
@@ -42,6 +42,8 @@ class Firewall:
 		verdict = self.verdict(packet)
 
 		print "%6s - %s" % (verdict, packet)
+		print "ip_header.checksum                = %d" % packet.ip_header.checksum
+		print "checksum(bytes, ip_header.length) = %d" % checksum(packet.bytes, packet.ip_header.length)
 
 		if verdict == 'pass':
 			self.pass_packet(packet.bytes, packet.direction)
@@ -78,7 +80,7 @@ class Firewall:
 		# Set RST (0x04) and ACK (0x10) flags
 		packet.transport_header.tcp_flags = 0x14
 
-		# Set dst to (src of 'pkt')
+		# Swap destination and source address info to send response
 		my_addr = packet.ip_header.dst_addr
 		my_port = packet.transport_header.dst_port
 		dst_addr = packet.ip_header.src_addr
@@ -89,10 +91,10 @@ class Firewall:
 		packet.ip_header.dst_addr = dst_addr
 		packet.transport_header.dst_port = dst_port
 
-		# Implement and set checksum
+		# Calculate and set the checksum field
 
-		# Send response to source address
-		self.pass_packet(packet.structify(), packet.direction)
+		# Convert the packet to a packed binary and send response to source
+		self.pass_packet(packet.structify(), PKT_DIR_OUTGOING)
 
 	def denydns_packet(self, packet):
 		"""

@@ -141,12 +141,13 @@ def checksum(data, length):
     checksum = 0x00000000
 
     # Append a zero byte if length is odd
+    data = data[:length]
     if (length & 1):
         data = data + '\x00'
 
     # Calculate value of 16-bit word and add to cumulative checksum
     for i in range(0, length, 2):
-        word = struct.unpack("!H", data[i:i+2])
+        word, = struct.unpack("!H", data[i:i+2])
         checksum += word
 
     # "Fold" 32-bit checksum into 16-bit word by adding two 16-bit halves

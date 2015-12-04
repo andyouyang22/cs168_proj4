@@ -53,17 +53,17 @@ class Packet:
         header (Header Class). Used only to simplify Packet constructor.
         """
         protocol = self.ip_header.protocol
-        ip_header_len = self.ip_header.length
+        ip_header_len = self.ip_header.length * 4
 
         if protocol == 1:
             protocol = 'icmp'
-            header = ICMPHeader(self.bytes, ip_header_len)
+            header = ICMPHeader(self.bytes[ip_header_len:])
         elif protocol == 6:
             protocol = 'tcp'
-            header = TCPHeader(self.bytes, ip_header_len)
+            header = TCPHeader(self.bytes[ip_header_len:])
         elif protocol == 17:
             protocol = 'udp'
-            header = UDPHeader(self.bytes, ip_header_len)
+            header = UDPHeader(self.bytes[ip_header_len:])
 
         return (protocol, header)
 
@@ -186,20 +186,21 @@ class IPHeader:
 
 
 class TCPHeader:
-    def __init__(self, pkt, ip_header_len):
-        start = ip_header_len * 4
+    def __init__(self, pkt):
+        self.bytes = pkt
 
-        self.src_port, = struct.unpack('!H', pkt[start:start+2])
-        self.dst_port, = struct.unpack('!H', pkt[start+2:start+4])
-        off_res,       = struct.unpack('!B', pkt[start+12])
+        self.src_port, = struct.unpack('!H', pkt[:2])
+        self.dst_port, = struct.unpack('!H', pkt[2:4])
+        self.seq,      = struct.unpack('!I', pkt[4:8])
+        off_res,       = struct.unpack('!B', pkt[12])
         off_res_bits   = bin(off_res)
         self.length    = int(off_res_bits[:6], 2)
-        self.checksum, = struct.unpack('!H', pkt[start+16:start+18])
+        self.checksum, = struct.unpack('!H', pkt[16:18])
 
         end = self.length * 4
         self.options = None
         if self.length > 5:
-            self.options = pkt[start + 20 : start + end]
+            self.options = pkt[20:end]
 
     def clone(self):
         """
@@ -209,22 +210,22 @@ class TCPHeader:
 
 
 class UDPHeader:
-    def __init__(self, pkt, ip_header_len):
-        start = ip_header_len * 4
+    def __init__(self, pkt):
+        self.bytes = pkt
 
-        self.src_port,  = struct.unpack('!H', pkt[start:start+2])
-        self.dst_port,  = struct.unpack('!H', pkt[start+2:start+4])
-        self.length,    = struct.unpack('!H', pkt[start+4:start+6])
-        self.checksum   = struct.unpack('!H', pkt[start+6:start+8])
+        self.src_port,  = struct.unpack('!H', pkt[:2])
+        self.dst_port,  = struct.unpack('!H', pkt[2:4])
+        self.length,    = struct.unpack('!H', pkt[4:6])
+        self.checksum   = struct.unpack('!H', pkt[6:8])
 
 
 class ICMPHeader:
     def __init__(self, pkt, ip_header_len):
-        start= ip_header_len * 4
+        self.bytes = pkt
 
-        self.the_type, = struct.unpack('!B', pkt[start])
-        self.code,     = struct.unpack('!B', pkt[start+1])
-        self.checksum, = struct.unpack('!H', pkt[start+2:start+4])
+        self.the_type, = struct.unpack('!B', pkt[0])
+        self.code,     = struct.unpack('!B', pkt[1])
+        self.checksum, = struct.unpack('!H', pkt[2:4])
         self.src_port  = 0
         self.dst_port  = 0
 
@@ -258,8 +259,6 @@ class HTTPHeader:
     	ip = packet.ip_header.length * 4
     	tp = packet.transport_header.length * 4
         curr = ip + tp
-        print "curr is %s" % curr
-        print "total len is %s" % packet.length
         if packet.direction == PKT_DIR_INCOMING:
             self.log_info_incoming(packet.bytes, curr)
         else:

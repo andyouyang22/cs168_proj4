@@ -27,7 +27,8 @@ class Firewall:
         # Load the GeoIP DB ('geoipdb.txt') as well.
         self.geos = parse.geos('geoipdb.txt')
 
-        self.seq_num_to_http = {}
+        # Map TCP SEQ number to corresponding persistent HTTP connection
+        self.conns = {}
 
         # Included so that a mock log file can be stubbed in during testing
         if 'log' in config:
@@ -121,13 +122,13 @@ class Firewall:
         """
 
         if packet.direction == PKT_DIR_OUTGOING:
-            seq_num = packet.tcp_header.seq_num
+            seq = packet.transport_header.seq
             http_header = HTTPHeader(packet)
-            self.seq_num_to_http[seq_hum] = http_header
+            self.conns[seq_hum] = http_header
         else:
             resp_header = HTTPHeader(packet)
-            req_seq_num = packet.tcp_header.seq_num - 1
-            req_header = self.seq_num_to_http[req_seq_num]
+            req_seq = packet.tcp_header.seq - 1
+            req_header = self.conns[req_seq]
             log_line = "%s %s %s %s %s %s" % (
                 req_header.host_name,
                 req_header.method,

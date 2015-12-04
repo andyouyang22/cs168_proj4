@@ -115,12 +115,10 @@ class Firewall:
         """
         We only want to log transactions, so we only do the log on response and
         otherwise we just store info
-        """
-        # Log messages should be one line and space-delimited with this format:
-        # <host_name> <method> <path> <version> <status_code> <object_size>
-        # e.g. google.com GET / HTTP/1.1 301 209
 
-        # Use f.flush!
+        Log messages should be one line and space-delimited with this format:
+        <host_name> <method> <path> <version> <status_code> <object_size>
+        """
 
         if packet.direction == PKT_DIR_OUTGOING:
             seq_num = packet.tcp_header.seq_num

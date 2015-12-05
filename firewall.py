@@ -128,16 +128,9 @@ class Firewall:
         tcp  = packet.transport_header
         http = packet.application_header
 
-        # If SYN packet, create TCP connection state dict
-        if packet.direction == PKT_DIR_OUTGOING and tcp.flags & 0x02:
-            self.conns[port] = {
-                # Next expected SEQ number to send
-                'req_seq'    : tcp.seq,
-                'req_header' : http,
-                # Next expected SEQ number to receive
-                'res_seq'    : -1,
-                'res_header' : None,
-            }
+        # 0x02 = SYN flag
+        if tcp.flags & 0x02:
+            self.handle_syn(packet)
             return
 
         # If FIN packet, log req-res pair if needed and delete connection state
@@ -155,22 +148,46 @@ class Firewall:
         if packet.direction == PKT_DIR_INCOMING and tcp.seq > conn['res_seq']:
             return
 
+        # General outgoing packet case
         elif packet.direction == PKT_DIR_OUTGOING:
             # If we are sending a new TCP packet (as opposed to resending), update
             # the highest SEQ number sent for this connection
-            if tcp.seq > conn['seq']:
+            if tcp.seq > conn['req_seq']:
                 conn['req_seq'] = tcp.seq
-                conn['req_ack'] = tcp.seq + http.length
                 conn['req_header'].append(http.data)
             # Regardless, send the request packet to HTTP server
             self.pass_packet(packet.bytes, PKT_DIR_OUTGOING)
 
+            # General incoming packet case
         elif packet.direction == PKT_DIR_INCOMING:
             if not conn['res_header']:
                 conn['res_header'] = http
                 conn['res_seq'] = http.seq + http.length
 
             conn['res_ack'] = tcp.ack
+
+    def handle_syn(self, packet):
+        """
+        Handle outgoing or incoming SYN packets by initializing connection state.
+        """
+        # Distinguish concurrent TCP connections by the internal port used
+        port = packet.internal_port
+        tcp  = packet.transport_header
+        http = packet.application_header
+        # If outgoing SYN packet, create TCP connection state dict
+        if packet.direction == PKT_DIR_OUTGOING:
+            self.conns[port] = {
+                # Highest SEQ number sent
+                'req_seq'    : tcp.seq,
+                'req_header' : http,
+            }
+        # If incoming SYN packet, update expected SEQ number
+        elif packet.direction == PKT_DIR_INCOMING:
+            # Next expected SEQ number to receive
+            self.conns[port]['res_seq'] = tcp.seq + http.length
+            self.conns[port]['res_header'] = http
+        # Send packet to intended destination
+        self.pass_packet(packet.bytes, packet.direction)
 
 
     def log(self, conn):

@@ -264,12 +264,6 @@ class HTTPHeader:
     def __init__(self, pkt, direction):
         # The contents of the HTTP packet in string form
         self.data = binary_to_string(pkt)
-<<<<<<< HEAD
-        print "header data is %s" % self.data
-        self.body = ""
-=======
-        print self.data
->>>>>>> 4a67ad39e017274e8d23949085e13bc7da561ad5
 
         self.direction = direction
 

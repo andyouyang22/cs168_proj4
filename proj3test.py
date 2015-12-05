@@ -121,7 +121,7 @@ class MockPacket(packet.Packet):
         self.transport_protocol = packet['transport']
         self.transport_header = MockTransportHeader(packet)
 
-        addr, port = self.determine_external_address()
+        addr, port, _ = self.determine_external_address()
         self.external_address = addr
         self.external_port = port
 

@@ -68,10 +68,12 @@ class Firewall:
 
     def handle_http_packet(self, packet):
         """
-        Assemble TCP packets to form HTTP headers. Drop packets that have forward
-        gaps in SEQ number. Note that this method is called any time the firewall
-        receives an HTTP packet (protocol = TCP, port = 80). Note also that this
-        method does not perform any logging.
+        Assemble TCP packets to form HTTP headers. This method is called any time
+        the firewall receives an HTTP packet (protocol = TCP, port = 80). Note that
+        this method does not perform any logging.
+
+        Return False if the packet should be dropped because of a forward sequence
+        gap; return True otherwise.
         """
         # Distinguish concurrent TCP connections by the internal port used
         port = packet.internal_port
@@ -155,7 +157,7 @@ class Firewall:
         Drop the packet. Respond with a TCP packet with the RST flag set to 1. This
         will prevent the sending application from sending subsequent SYN packets.
         """
-        if packet.direction != PKT_DIR_INCOMING:
+        if packet.direction != PKT_DIR_OUTGOING:
             return
 
         # Set RST (0x04) and ACK (0x10) flags
@@ -175,7 +177,7 @@ class Firewall:
         # Calculate and set the checksum fields (performed in packet.structify)
 
         # Convert the packet to a packed binary and send response to source
-        self.pass_packet(packet.structify(), PKT_DIR_OUTGOING)
+        self.pass_packet(packet.structify(), PKT_DIR_INCOMING)
 
     def denydns_packet(self, packet):
         """
@@ -275,8 +277,9 @@ class Firewall:
         if protocol == 'http':
             if packet.application_protocol != 'http':
                 return False
-            http = packet.application_header
-            if hasattr(http, 'host_name') and http.host_name != None:
+            conn = self.conns[packet.internal_port]
+            http = conn['req_header']
+            if http.host_name != "":
                 return matches_host_name(rule['host_name'], http.host_name)
             # Use external address if host name not supplied in HTTP header
             return matches_host(rule['host_name'], addr)

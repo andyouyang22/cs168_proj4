@@ -144,27 +144,23 @@ class Firewall:
             return
         conn = self.conns[port]
 
-        # Drop packets with a forward gap in SEQ number (as per specs)
-        if packet.direction == PKT_DIR_INCOMING and tcp.seq > conn['res_seq']:
-            return
-
         # General outgoing packet case
         elif packet.direction == PKT_DIR_OUTGOING:
-            # If we are sending a new TCP packet (as opposed to resending), update
-            # the highest SEQ number sent for this connection
-            if tcp.seq > conn['req_seq']:
-                conn['req_seq'] = tcp.seq
+            if tcp.seq == conn['req_seq']:
+                conn['req_seq'] = tcp.seq + http.length
                 conn['req_header'].append(http.data)
-            # Regardless, send the request packet to HTTP server
-            self.pass_packet(packet.bytes, PKT_DIR_OUTGOING)
+            # Drop packets with forward gap in SEQ number (as per specs)
+            if tcp.seq <= conn['req_seq']
+                self.pass_packet(packet.bytes, PKT_DIR_OUTGOING)
 
-            # General incoming packet case
+        # General incoming packet case
         elif packet.direction == PKT_DIR_INCOMING:
-            if not conn['res_header']:
-                conn['res_header'] = http
+            if tcp.seq == con['res_seq']:
                 conn['res_seq'] = http.seq + http.length
-
-            conn['res_ack'] = tcp.ack
+                conn['res_header'].append(http.data)
+            # Drop packets with forward gap in SEQ number (as per specs)
+            if tcp.seq <= conn['res_seq']
+                self.pass_packet(packet.bytes, PKT_DIR_INCOMING)
 
     def handle_syn(self, packet):
         """
@@ -177,7 +173,7 @@ class Firewall:
         # If outgoing SYN packet, create TCP connection state dict
         if packet.direction == PKT_DIR_OUTGOING:
             self.conns[port] = {
-                # Highest SEQ number sent
+                # Next expected SEQ number to send
                 'req_seq'    : tcp.seq,
                 'req_header' : http,
             }

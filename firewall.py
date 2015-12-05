@@ -197,19 +197,15 @@ class Firewall:
         """
         Insert documentation here.
         """
-        # TODO:
-        # Drop 'pkt'
         # If QTYPE == "AAAA", don't send response. Be done
+        if packet.application_header.qtype == "AAAA":
+            return
+
         # Otherwise, create DNS packet
         # Send to internal interface pointing to fixed IP addr 169.229.49.130
 
-        # Temporary
-        if packet.application_header.qtype == "AAAA":
-            return
-        
-        
-        self.pass_packet(packet.bytes, packet.direction)
-        return
+
+        # self.pass_packet(packet.bytes, packet.direction)
 
     def log_packet(self, packet):
         """
@@ -289,7 +285,19 @@ class Firewall:
         if protocol == 'dns':
             if packet.application_protocol != 'dns':
                 return False
+            if packet.direction == PKT_DIR_INCOMING:
+                return False
+
             dns = packet.application_header
+            # Return False if DNS packet does not contain exactly one question
+            if dns.qdcount != 1:
+                return False
+            # Return False if DNS packet does not have QTYPE == A (1) or AAAA (28)
+            if dns.qtype not in [1, 28]:
+                return False
+            # Return False if DNS packet does not have QCLASS == INTERNET (1)
+            if dns.qclass != 1:
+                return False
             return matches_domain(rule['domain_name'], dns.domain_name)
 
         # Handle the case where the rule has protocol HTTP

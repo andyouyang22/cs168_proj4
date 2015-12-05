@@ -212,7 +212,7 @@ class IPHeader:
 
         if not deny_tcp:
             dst = socket.inet_aton("169.229.49.130")
-        
+
         result = self.bytes[:10] + sum + src + dst + self.options
 
         assert len(result) == self.length * 4  # Remove later
@@ -326,6 +326,7 @@ class DNSHeader:
         self.doman_name_packed = pkt[(start + 12):curr]
         self.domain_name = self.domain_name[:-1]
         self.qtype = struct.unpack("!H", pkt[curr:curr+2])
+        self.qclass = struct.unpack("!H", pkt[curr+2:curr+4])
         self.question = pkt[start+12:curr+4]
         self.cls = pkt[curr+4+len(self.domain_name)+2 : curr+4+len(self.domain_name)+2+2]
 
@@ -335,7 +336,7 @@ class DNSHeader:
         answer = "%s%s%s%s" % (self.doman_name_packed, typ, self.cls, ttl)
         return answer
 
-        
+
     def get_questions_and_answer_headers(self):
         return self.question + self.answer
 

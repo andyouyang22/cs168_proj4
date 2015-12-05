@@ -286,7 +286,6 @@ class HTTPHeader:
     def length(self):
         return len(self.data)
 
-
     def append(self, data):
         """
         Append data from another TCP packet. Re-parse fields

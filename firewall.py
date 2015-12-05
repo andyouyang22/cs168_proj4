@@ -45,7 +45,7 @@ class Firewall:
 
         # If the packet is an HTTP packet, assemble this packet's payload with the
         # rest of the data received from this TCP connection.
-        if packet.protocol == 'tcp' and packet.external_port = '80':
+        if packet.transport_protocol == 'tcp' and packet.external_port == '80':
             self.handle_http_packet(packet)
 
         verdict = self.verdict(packet)
@@ -53,7 +53,7 @@ class Firewall:
         print "%6s - %s" % (verdict, packet)
         ip = packet.ip_header
         print "ip_header.checksum = %d" % ip.checksum
-        print "checksum(bytes)    = %d" % checksum(ip.bytes])
+        print "checksum(bytes)    = %d" % checksum(ip.bytes)
 
         if verdict == 'pass':
             self.pass_packet(packet.bytes, packet.direction)
@@ -98,7 +98,8 @@ class Firewall:
 
         # General outgoing packet case
         if packet.direction == PKT_DIR_OUTGOING:
-            if tcp.seq == conn['req_seq']:
+        	# No need to update if we are just sending an ACK
+            if tcp.seq == conn['req_seq'] and http != None:
                 conn['req_seq'] = tcp.seq + http.length
                 conn['req_header'].append(http.data)
             # Drop packets with forward gap in SEQ number (as per specs)
@@ -107,7 +108,8 @@ class Firewall:
 
         # General incoming packet case
         elif packet.direction == PKT_DIR_INCOMING:
-            if tcp.seq == con['res_seq']:
+        	# No need to update if we are just receiving an ACK
+            if tcp.seq == con['res_seq'] and http != None:
                 conn['res_seq'] = http.seq + http.length
                 conn['res_header'].append(http.data)
             # Drop packets with forward gap in SEQ number (as per specs)
@@ -126,13 +128,13 @@ class Firewall:
         if packet.direction == PKT_DIR_OUTGOING:
             self.conns[port] = {
                 # Next expected SEQ number to send
-                'req_seq'    : tcp.seq,
+                'req_seq'    : tcp.seq + 1,
                 'req_header' : http,
             }
         # If incoming SYN packet, update expected SEQ number
         elif packet.direction == PKT_DIR_INCOMING:
             # Next expected SEQ number to receive
-            self.conns[port]['res_seq'] = tcp.seq + http.length
+            self.conns[port]['res_seq'] = tcp.seq + 1
             self.conns[port]['res_header'] = http
         # Send packet to intended destination
         self.pass_packet(packet.bytes, packet.direction)

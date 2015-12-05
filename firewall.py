@@ -121,10 +121,10 @@ class Firewall:
         <host_name> <method> <path> <version> <status_code> <object_size>
         """
         assert packet.transport_protocol == 'tcp'  # Remove later
-
+        print "inside log"
         tcp = packet.transport_header
         http = packet.application_header
-
+        
         if packet.direction == PKT_DIR_OUTGOING:
             # If SYN packet, create TCP connection state dict
             if tcp.flags & 0x02:
@@ -154,6 +154,7 @@ class Firewall:
                     res.status_code,
                     res.object_size
                 )
+                print "adding this line to log: %s" % line
                 self.log_file.write(line)
                 self.log_file.flush()
 

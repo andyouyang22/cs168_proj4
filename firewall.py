@@ -135,8 +135,10 @@ class Firewall:
         # If outgoing SYN packet, create TCP connection state dict
         if packet.direction == PKT_DIR_OUTGOING:
             self.conns[port] = {
+                # Whether or not this current connection has been logged
+                'logged'  : False,
                 # Next expected SEQ number to send
-                'req_seq'    : tcp.seq + 1,
+                'req_seq' : tcp.seq + 1,
             }
         # If incoming SYN packet, update expected SEQ number
         elif packet.direction == PKT_DIR_INCOMING:
@@ -219,8 +221,10 @@ class Firewall:
         HTTP request-response pairs, the 'req_header' and 'res_header' fields will
         be reset. This method should be called again afterwards to log this pair.
         """
-        req = conn['req']
-        res = conn['res']
+        if conn['logged']:
+            return
+        req = conn['req_header']
+        res = conn['res_header']
         line = "%s %s %s %s %s %s" % (
             req.host_name,
             req.method,
@@ -231,6 +235,7 @@ class Firewall:
         )
         self.log.write(line)
         self.log.flush()
+        conn['logged'] = True
 
     def verdict(self, packet):
         """

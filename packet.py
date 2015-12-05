@@ -168,12 +168,8 @@ Header classes used to parse fields from packet headers.
 
 class IPHeader:
     def __init__(self, pkt):
-        self.bytes = pkt
+        self.length     = struct.unpack('!B', pkt[0])[0] & 0x0f
 
-        first, = struct.unpack('!B', pkt[0])
-        first  = bin(first)
-
-        self.length     = int(first[6:], 2)
         self.total_len, = struct.unpack('!H', pkt[2:4])
         self.protocol,  = struct.unpack('!B', pkt[9])
         self.checksum,  = struct.unpack('!H', pkt[10:12])

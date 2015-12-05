@@ -190,7 +190,12 @@ class IPHeader:
         Clones the current state of the packet header fields and returns a byte-
         string representation of the packet.
         """
-
+        packed_dst = socket.inet_aton(self.dst_addr)
+        packed_src = socket.inet_aton(self.src_addr)
+        packed_checksum = struct.pack("!H", self.checksum)
+        
+        packed_final = self.bytes[:10] + packed_checksum + packed_src + packed_dst + self.options
+        self.bytes = packed_final 
 
 
 class TCPHeader:
@@ -216,6 +221,13 @@ class TCPHeader:
         Clones the current state of the packet header fields and returns a byte-
         string representation of the packet.
         """
+        packed_flags = struct.pack('!B', self.flags)
+        packed_dst_port = struct.pack('!H', self.dst_port)
+        packed_src_port = struct.pack('!H', self.src_port)
+        packed_checksum = struct.pack('!H', self.checksum)
+
+        packed_final = packed_src_port + packed_dst_port + self.bytes[4:13] + packed_flags + self.bytes[14:16] + packed_checksum + self.bytes[18:20] + self.options
+        self.bytes = packed_final
 
 
 class UDPHeader:

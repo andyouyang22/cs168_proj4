@@ -318,11 +318,11 @@ def matches_port(port, rule):
         return True
     endpoints = rule['ext_port'].split('-')
     if len(endpoints) == 2:
-        start = int(endpoints[0])
-        end = int(endpoints[1])
+        start = endpoints[0]
+        end = endpoints[1]
         return start <= port and port <= end
     elif len(endpoints) == 1:
-        return int(endpoints[0]) == port
+        return endpoints[0] == port
     else:
         print "matching port; should be unreachable"
 

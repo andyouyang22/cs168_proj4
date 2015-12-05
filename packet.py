@@ -20,9 +20,10 @@ class Packet:
         self.transport_protocol = protocol
         self.transport_header = header
 
-        addr, port = self.determine_external_address()
-        self.external_address = addr
-        self.external_port = port
+        ext_addr, ext_port, int_port = self.determine_external_address()
+        self.external_address = ext_addr
+        self.external_port = ext_port
+        self.internal_port = int_port
 
         # If protocol is HTTP, application_header will store the packet payload
         protocol, header = self.determine_application_header()
@@ -37,15 +38,17 @@ class Packet:
         simplify Packet constructor.
         """
         if self.direction == PKT_DIR_INCOMING:
-            addr = self.ip_header.src_addr
-            port = int(self.transport_header.src_port)
+            ext_addr = self.ip_header.src_addr
+            ext_port = str(self.transport_header.src_port)
+            int_port = str(self.transport_header.dst_port)
         elif self.direction == PKT_DIR_OUTGOING:
-            addr = self.ip_header.dst_addr
-            port = int(self.transport_header.dst_port)
+            ext_addr = self.ip_header.dst_addr
+            ext_port = str(self.transport_header.dst_port)
+            int_port = str(self.transport_header.src_port)
         else:
             print "determining addr and port; should be unreachable"
 
-        return (addr, port)
+        return (ext_addr, ext_port, int_port)
 
     def determine_transport_header(self):
         """
@@ -195,9 +198,8 @@ class TCPHeader:
         self.dst_port, = struct.unpack('!H', header[2:4])
         self.seq,      = struct.unpack('!I', header[4:8])
         self.ack,      = struct.unpack('!I', header[8:12])
-        off_res,       = struct.unpack('!B', header[12])
-        off_res_bits   = bin(off_res)
-        self.length    = int(off_res_bits[:6], 2)
+        offset,        = struct.unpack('!B', header[12])
+        self.length    = offset >> 4
         self.flags,    = struct.unpack('!B', header[13])
         self.checksum, = struct.unpack('!H', header[16:18])
 
@@ -364,7 +366,6 @@ def binary_to_string(binary):
     """
     results = ""
     for i in range(len(binary)):
-        print results
         ch = struct.unpack("!c", binary[i])[0]
         results += ch
     return results

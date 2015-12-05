@@ -91,6 +91,7 @@ class Packet:
             ip = self.ip_header.length * 4
             tp = self.transport_header.length * 4
             if self.length > ip + tp:
+                print "starting point is %d" % (ip + tp)
                 header = HTTPHeader(self.bytes[ip+tp:self.length], self.direction)
 
         return (protocol, header)
@@ -197,7 +198,7 @@ class TCPHeader:
         self.ack,      = struct.unpack('!I', header[8:12])
         off_res,       = struct.unpack('!B', header[12])
         off_res_bits   = bin(off_res)
-        self.length    = int(off_res_bits[:6], 2)
+        self.length    = int(off_res_bits[:5], 2)
         self.flags,    = struct.unpack('!B', header[13])
         self.checksum, = struct.unpack('!H', header[16:18])
 
@@ -320,9 +321,9 @@ class HTTPHeader:
     def parse_outgoing(self):
         # Parse fields in the first line (e.g. "GET / HTTP/1.1")
         end = self.data.find('\r\n')
-        print 'end is %s' % end
+        #print 'end is %s' % end
         tokens = self.data[:end].split(' ')
-        print "tokens is %s" % tokens
+        #print "tokens is %s" % tokens
         self.method  = tokens[0]
         self.path    = tokens[1]
         self.version = tokens[2]
@@ -364,7 +365,7 @@ def binary_to_string(binary):
     """
     results = ""
     for i in range(len(binary)):
-        print results
+        #print results
         ch = struct.unpack("!c", binary[i])[0]
         results += ch
     return results

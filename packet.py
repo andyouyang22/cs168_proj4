@@ -112,7 +112,7 @@ class Packet:
 
     def make_dns_response(self):
         ip = self.ip_header.structify(False)
-        tp = self.transport_header.structify(self.ip_header)
+        udp = self.transport_header.structify()
         dns_header = self.application_header.dns_raw
         q_and_a = self.application_header.question_and_answer_headers()
         return "%s%s%s%s" % (ip, tp, dns_header, q_and_a)
@@ -284,6 +284,14 @@ class UDPHeader:
         self.length,    = struct.unpack('!H', header[4:6])
         self.checksum   = struct.unpack('!H', header[6:8])
 
+    def structify(self):
+        src = struct.pack("!H", self.src_port)
+        dst = struct.pack("!H", self.dst_port)
+        leng = struct.pack("!H", self.length)
+        check = struct.pack("!H", self.checksum)
+        return "%s%s%s%s" % (src, dst, leng, check)
+
+
 
 class ICMPHeader:
     def __init__(self, header):
@@ -319,7 +327,7 @@ class DNSHeader:
         self.domain_name = self.domain_name[:-1]
         self.qtype = struct.unpack("!H", pkt[curr:curr+2])
         self.question = pkt[start+12:curr+4]
-        self.cls = pkt[curr+4+len(self.doman_name)+2 : curr+4+len(self.doman_name)+2+2]
+        self.cls = pkt[curr+4+len(self.domain_name)+2 : curr+4+len(self.domain_name)+2+2]
 
     def make_answer(self):
         typ = struct.pack("!H", "A")

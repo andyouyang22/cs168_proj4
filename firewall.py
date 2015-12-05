@@ -202,7 +202,7 @@ class Firewall:
         # Send to internal interface pointing to fixed IP addr 169.229.49.130
 
         # Temporary
-        if packet.qtype == "AAAA":
+        if packet.application_header.qtype == "AAAA":
             return
         
         

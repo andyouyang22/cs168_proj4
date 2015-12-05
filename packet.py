@@ -82,9 +82,7 @@ class Packet:
         header = None
 
         # Note that IP and TCP header lengths are expressed in "words" (4 bytes)
-        print "inside dah"
         if self.transport_protocol == 'udp' and self.external_port == '53':
-            
             protocol = 'dns'
             header = DNSHeader(self.bytes, self.ip_header.length)
 
@@ -266,8 +264,12 @@ class HTTPHeader:
     def __init__(self, pkt, direction):
         # The contents of the HTTP packet in string form
         self.data = binary_to_string(pkt)
+<<<<<<< HEAD
         print "header data is %s" % self.data
         self.body = ""
+=======
+        print self.data
+>>>>>>> 4a67ad39e017274e8d23949085e13bc7da561ad5
 
         self.direction = direction
 
@@ -342,6 +344,7 @@ class HTTPHeader:
             if end != -1:
                 # Trim leading/trailing whitespace if necessary
                 self.host_name = frag[:end].strip()
+                self.parsed = True
 
 
     def parse_incoming(self):
@@ -362,6 +365,7 @@ class HTTPHeader:
             if end != -1:
                 # Trim leading/trailing whitespace if necessary
                 self.object_size = frag[:end].strip()
+                self.parsed = True
 
 
 def binary_to_string(binary):

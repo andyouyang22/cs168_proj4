@@ -104,13 +104,12 @@ class Packet:
         Clones the current state of the packet header fields and returns a byte-
         string representation of the packet.
         """
-        clone = self.bytes
         ip = self.ip_header.structify()
-        tp = self.transport_header.structify()
+        tp = self.transport_header.structify(self.ip_header)
 
         assert len(ip) + len(tp) < self.length  # Remove later
 
-        return ip + tp + clone[len(ip)+len(tp):]
+        return ip + tp
 
 
     def __str__(self):
@@ -193,7 +192,7 @@ class IPHeader:
         assert len(result) == self.length * 4  # Remove later
 
         return checksum(result)
-    
+
 
     def structify(self):
         """
@@ -202,8 +201,8 @@ class IPHeader:
         """
         dst = socket.inet_aton(self.dst_addr)
         src = socket.inet_aton(self.src_addr)
-        
-        sum = struct.pack('!H', self.checksum)
+
+        sum = struct.pack('!H', self.checksum())
 
         result = self.bytes[:10] + sum + src + dst + self.options
 
@@ -250,9 +249,9 @@ class TCPHeader:
         ip = src_addr + dst_addr + reserved + protocol + length
 
         return checksum(ip + tcp)
-    
 
-    def structify(self):
+
+    def structify(self, ip):
         """
         Clones the current state of the packet header fields and returns a byte-
         string representation of the packet.
@@ -261,7 +260,7 @@ class TCPHeader:
         dst = struct.pack('!H', self.dst_port)
         src = struct.pack('!H', self.src_port)
 
-        sum = struct.pack('!H', self.checksum)
+        sum = struct.pack('!H', self.checksum(ip))
 
         result = src + dst + self.bytes[4:13] + flags + self.bytes[14:16] + checksum + self.bytes[18:20] + self.options
 

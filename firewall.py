@@ -88,10 +88,15 @@ class Firewall:
 
         # We may have deleted this connection state because we already logged it
         if port not in self.conns:
-            print "Connection for port %s not found" % port
             self.pass_packet(packet.bytes, packet.direction)
             return
+
         conn = self.conns[port]
+
+        # If all log data has been received, parse the data and log the connection
+        if 'req_header' in conn and 'res_header' in conn:
+            if conn['req_header'].parsed and conn['res_header'].parsed:
+                self.log_connection(conn)
 
         # General outgoing packet case
         if packet.direction == PKT_DIR_OUTGOING:

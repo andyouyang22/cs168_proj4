@@ -314,11 +314,7 @@ class HTTPHeader:
     def __init__(self, pkt, direction):
         # The contents of the HTTP packet in string form
         self.data = binary_to_string(pkt)
-
         self.direction = direction
-
-        # Whether or not the entire HTTP header has been received
-        self.parsed = self.data.find('\r\n\r\n') != -1
 
         # Fields needed for 'log' verdict
         self.host_name   = ""
@@ -328,6 +324,7 @@ class HTTPHeader:
         self.status_code = ""
         self.object_size = -1
 
+        self.parsed = False
         self.parse()
 
     @property
@@ -354,6 +351,7 @@ class HTTPHeader:
         # Ignore HTTP body content (but record size)
         end = self.data.find('\r\n\r\n')
         if end >= 0:
+            end += len('\r\n\r\n')
             self.data = self.data[:end]
             if not self.parsed:
                 self.parsed = True

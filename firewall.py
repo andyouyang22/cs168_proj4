@@ -52,8 +52,10 @@ class Firewall:
 
         print "%6s - %s" % (verdict, packet)
         ip = packet.ip_header
-        print "ip_header.checksum = %d" % ip.checksum
-        print "checksum(bytes)    = %d" % checksum(ip.bytes)
+        print "ip_header.checksum        = %d" % ip.checksum
+        print "checksum(ip_header.bytes) = %d" % checksum(ip.bytes)
+        print "ip_header.length          = %d" % ip.length
+        print "len(ip_header.bytes)      = %s" % len(ip.bytes)
 
         if verdict == 'pass':
             self.pass_packet(packet.bytes, packet.direction)
@@ -86,8 +88,8 @@ class Firewall:
             return
 
         # If FIN packet, log req-res pair if needed and delete connection state
-        if tcp.flags & 0x01:
-            self.log(self.conns[port])  # TODO: check if already logged
+        if tcp.flags & 0x01 and port in self.conns:
+            self.log_connection(self.conns[port])  # TODO: check if already logged
             del self.conns[port]
 
         # We may have deleted this connection state because we already logged it
@@ -98,20 +100,26 @@ class Firewall:
 
         # General outgoing packet case
         if packet.direction == PKT_DIR_OUTGOING:
-        	# No need to update if we are just sending an ACK
+            # No need to update if we are just sending an ACK
             if tcp.seq == conn['req_seq'] and http != None:
                 conn['req_seq'] = tcp.seq + http.length
-                conn['req_header'].append(http.data)
+                if 'req_header' in conn:
+                    conn['req_header'].append(http.data)
+                else:
+                    conn['req_header'] = http
             # Drop packets with forward gap in SEQ number (as per specs)
             if tcp.seq <= conn['req_seq']:
                 self.pass_packet(packet.bytes, PKT_DIR_OUTGOING)
 
         # General incoming packet case
         elif packet.direction == PKT_DIR_INCOMING:
-        	# No need to update if we are just receiving an ACK
-            if tcp.seq == con['res_seq'] and http != None:
-                conn['res_seq'] = http.seq + http.length
-                conn['res_header'].append(http.data)
+            # No need to update if we are just receiving an ACK
+            if tcp.seq == conn['res_seq'] and http != None:
+                conn['res_seq'] = tcp.seq + http.length
+                if 'res_header' in conn:
+                    conn['res_header'].append(http.data)
+                else:
+                    conn['res_header'] = http
             # Drop packets with forward gap in SEQ number (as per specs)
             if tcp.seq <= conn['res_seq']:
                 self.pass_packet(packet.bytes, PKT_DIR_INCOMING)
@@ -129,13 +137,11 @@ class Firewall:
             self.conns[port] = {
                 # Next expected SEQ number to send
                 'req_seq'    : tcp.seq + 1,
-                'req_header' : http,
             }
         # If incoming SYN packet, update expected SEQ number
         elif packet.direction == PKT_DIR_INCOMING:
             # Next expected SEQ number to receive
             self.conns[port]['res_seq'] = tcp.seq + 1
-            self.conns[port]['res_header'] = http
         # Send packet to intended destination
         self.pass_packet(packet.bytes, packet.direction)
 
@@ -207,9 +213,11 @@ class Firewall:
         return
 
 
-    def log(self, conn):
+    def log_connection(self, conn):
         """
-        Log the given HTTP connection.
+        Log the given HTTP connection. Note that if a connection contains multiple
+        HTTP request-response pairs, the 'req_header' and 'res_header' fields will
+        be reset. This method should be called again afterwards to log this pair.
         """
         req = conn['req']
         res = conn['res']

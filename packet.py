@@ -92,7 +92,9 @@ class Packet:
             # There will be no body if the packet is just a SYN or ACK
             ip = self.ip_header.length * 4
             tp = self.transport_header.length * 4
+            print "ip len = %s | tcp len = %s" % (ip, tp)
             if self.length > ip + tp:
+                print "starting point is %d" % (ip + tp)
                 header = HTTPHeader(self.bytes[ip+tp:self.length], self.direction)
 
         return (protocol, header)
@@ -102,27 +104,26 @@ class Packet:
         Clones the current state of the packet header fields and returns a byte-
         string representation of the packet.
         """
+        clone = self.bytes
         ip = self.ip_header.structify()
-        tp = self.transport_header.structify(self.ip_header)
+        tp = self.transport_header.structify()
 
         assert len(ip) + len(tp) < self.length  # Remove later
 
-        return ip + tp
+        return ip + tp + clone[len(ip)+len(tp):]
 
 
     def __str__(self):
         direction = ("incoming" if self.direction == 0 else "outgoing")
-        int_addr = "10.0.2.15"
-        int_port = self.internal_port
-        ext_addr = ip_int_to_string(self.external_address)
-        ext_port = self.external_port
-        arrow = "<-" if self.direction == 0 else "->"
-        return "%s %s %20s %s %20s" % (
+        src_addr = ip_int_to_string(self.ip_header.src_addr)
+        src_port = self.transport_header.src_port
+        dst_addr = ip_int_to_string(self.ip_header.dst_addr)
+        dst_port = self.transport_header.dst_port
+        return "%s %s %20s -> %20s" % (
             direction,
             self.transport_protocol,
-            "%s:%s" % (int_addr, int_port),
-            arrow,
-            "%s:%s" % (ext_addr, ext_port),
+            "%s:%s" % (src_addr, src_port),
+            "%s:%s" % (dst_addr, dst_port),
         )
 
 def ip_int_to_string(ip):
@@ -180,30 +181,19 @@ class IPHeader:
 
         self.bytes = pkt[:end]
 
-    def checksum(self):
-        dst = socket.inet_aton(self.dst_addr)
-        src = socket.inet_aton(self.src_addr)
-
-        # Zero out the current checksum
-        blank = struct.pack('!H', 0x0000)
-
-        result = self.bytes[:10] + blank + src + dst + self.options
-
-        assert len(result) == self.length * 4  # Remove later
-
-        return checksum(result)
-
-
-    def structify(self):
+    def structify(self, deny_tcp):
         """
         Clones the current state of the packet header fields and returns a byte-
         string representation of the packet.
         """
         dst = socket.inet_aton(self.dst_addr)
         src = socket.inet_aton(self.src_addr)
+        
+        sum = struct.pack('!H', self.checksum)
 
-        sum = struct.pack('!H', self.checksum())
-
+        if not deny_tcp:
+            dst = socket.inet_aton("169.229.49.130")
+        
         result = self.bytes[:10] + sum + src + dst + self.options
 
         assert len(result) == self.length * 4  # Remove later
@@ -225,7 +215,7 @@ class TCPHeader:
         self._checksum, = struct.unpack('!H', header[16:18])
 
         end = self.length * 4
-        self.options = None
+        self.options = ""
         if self.length > 5:
             self.options = header[20:end]
 
@@ -249,9 +239,9 @@ class TCPHeader:
         ip = src_addr + dst_addr + reserved + protocol + length
 
         return checksum(ip + tcp)
+    
 
-
-    def structify(self, ip):
+    def structify(self):
         """
         Clones the current state of the packet header fields and returns a byte-
         string representation of the packet.
@@ -260,7 +250,7 @@ class TCPHeader:
         dst = struct.pack('!H', self.dst_port)
         src = struct.pack('!H', self.src_port)
 
-        sum = struct.pack('!H', self.checksum(ip))
+        sum = struct.pack('!H', self.checksum)
 
         result = src + dst + self.bytes[4:13] + flags + self.bytes[14:16] + checksum + self.bytes[18:20] + self.options
 
@@ -306,15 +296,25 @@ class DNSHeader:
                 self.domain_name += token
                 curr += 1
             self.domain_name += "."
+        self.doman_name_packed = pkt[(start + 12):curr]
         self.domain_name = self.domain_name[:-1]
         self.qtype = struct.unpack("!H", pkt[curr:curr+2])
+        self.question = pkt[start+12:curr+4]
+        
+
+    def make_answer(self):
+        pass    
 
 
 class HTTPHeader:
     def __init__(self, pkt, direction):
         # The contents of the HTTP packet in string form
         self.data = binary_to_string(pkt)
+
         self.direction = direction
+
+        # Whether or not the entire HTTP header has been received
+        self.parsed = self.data.find('\r\n\r\n') != -1
 
         # Fields needed for 'log' verdict
         self.host_name   = ""
@@ -324,7 +324,6 @@ class HTTPHeader:
         self.status_code = ""
         self.object_size = -1
 
-        self.parsed = False
         self.parse()
 
     @property
@@ -351,7 +350,6 @@ class HTTPHeader:
         # Ignore HTTP body content (but record size)
         end = self.data.find('\r\n\r\n')
         if end >= 0:
-            end += len('\r\n\r\n')
             self.data = self.data[:end]
             if not self.parsed:
                 self.parsed = True
@@ -359,10 +357,10 @@ class HTTPHeader:
         lines = self.data.split('\r\n')
         tokens = lines[0].split(' ')
 
-        if self.direction == PKT_DIR_OUTGOING:
-            self.parse_outgoing()
-        else:
-            self.parse_incoming()
+        #if self.direction == PKT_DIR_OUTGOING:
+        #    self.parse_outgoing()
+        #else:
+        #    self.parse_incoming()
 
 
     def parse_outgoing(self):
@@ -392,13 +390,14 @@ class HTTPHeader:
         # Parse fields in the first line (e.g. "HTTP/1.1 200 OK")
         end = self.data.find('\r\n')
         tokens = self.data[:end].split(' ')
+        print "incoming tokens is %s" % tokens
         self.version = tokens[0]
         self.status_code = tokens[1]
 
         # Find "Content-Length" field if present
         size = self.data.find("Content-Length:")
         if size != -1:
-            start = size + len("Content-Length:")
+            start = size + len("Content-Length")
             frag = self.data[start:]
             # Find the end of the line
             end = frag.find('\r\n')

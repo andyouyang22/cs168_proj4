@@ -42,6 +42,12 @@ class Firewall:
     def handle_packet(self, pkt_dir, pkt):
         # TODO: Your main firewall code will be here.
         packet = Packet(pkt, pkt_dir)
+
+        # If the packet is an HTTP packet, assemble this packet's payload with the
+        # rest of the data received from this TCP connection.
+        if packet.protocol == 'tcp' and packet.external_port = '80':
+            self.handle_http_packet(packet)
+
         verdict = self.verdict(packet)
 
         print "%6s - %s" % (verdict, packet)
@@ -61,6 +67,75 @@ class Firewall:
             self.log_packet(packet)
 
     # TODO: You can add more methods as you want.
+
+    def handle_http_packet(self, packet):
+        """
+        Assemble TCP packets to form HTTP headers. Drop packets that have forward
+        gaps in SEQ number. Note that this method is called any time the firewall
+        receives an HTTP packet (protocol = TCP, port = 80).
+        """
+        # Distinguish concurrent TCP connections by the internal port used
+        port = packet.internal_port
+        tcp  = packet.transport_header
+        http = packet.application_header
+
+        # 0x02 = SYN flag
+        if tcp.flags & 0x02:
+            self.handle_syn(packet)
+            return
+
+        # If FIN packet, log req-res pair if needed and delete connection state
+        if tcp.flags & 0x01:
+            self.log(self.conns[port])  # TODO: check if already logged
+            del self.conns[port]
+
+        # We may have deleted this connection state because we already logged it
+        if port not in self.conns:
+            print "Connection for port %s not found" % port
+            return
+        conn = self.conns[port]
+
+        # General outgoing packet case
+        elif packet.direction == PKT_DIR_OUTGOING:
+            if tcp.seq == conn['req_seq']:
+                conn['req_seq'] = tcp.seq + http.length
+                conn['req_header'].append(http.data)
+            # Drop packets with forward gap in SEQ number (as per specs)
+            if tcp.seq <= conn['req_seq']
+                self.pass_packet(packet.bytes, PKT_DIR_OUTGOING)
+
+        # General incoming packet case
+        elif packet.direction == PKT_DIR_INCOMING:
+            if tcp.seq == con['res_seq']:
+                conn['res_seq'] = http.seq + http.length
+                conn['res_header'].append(http.data)
+            # Drop packets with forward gap in SEQ number (as per specs)
+            if tcp.seq <= conn['res_seq']
+                self.pass_packet(packet.bytes, PKT_DIR_INCOMING)
+
+    def handle_syn(self, packet):
+        """
+        Handle outgoing or incoming SYN packets by initializing connection state.
+        """
+        # Distinguish concurrent TCP connections by the internal port used
+        port = packet.internal_port
+        tcp  = packet.transport_header
+        http = packet.application_header
+        # If outgoing SYN packet, create TCP connection state dict
+        if packet.direction == PKT_DIR_OUTGOING:
+            self.conns[port] = {
+                # Next expected SEQ number to send
+                'req_seq'    : tcp.seq,
+                'req_header' : http,
+            }
+        # If incoming SYN packet, update expected SEQ number
+        elif packet.direction == PKT_DIR_INCOMING:
+            # Next expected SEQ number to receive
+            self.conns[port]['res_seq'] = tcp.seq + http.length
+            self.conns[port]['res_header'] = http
+        # Send packet to intended destination
+        self.pass_packet(packet.bytes, packet.direction)
+
 
     def pass_packet(self, pkt, pkt_dir):
          """
@@ -123,67 +198,7 @@ class Firewall:
         """
         assert packet.transport_protocol == 'tcp'  # Remove later
 
-        # Distinguish concurrent TCP connections by the internal port used
-        port = packet.internal_port
-        tcp  = packet.transport_header
-        http = packet.application_header
-
-        # 0x02 = SYN flag
-        if tcp.flags & 0x02:
-            self.handle_syn(packet)
-            return
-
-        # If FIN packet, log req-res pair if needed and delete connection state
-        if tcp.flags & 0x01:
-            self.log(self.conns[port])  # TODO: check if already logged
-            del self.conns[port]
-
-        # We may have deleted this connection state because we already logged it
-        if port not in self.conns:
-            print "Connection for port %s not found" % port
-            return
-        conn = self.conns[port]
-
-        # General outgoing packet case
-        elif packet.direction == PKT_DIR_OUTGOING:
-            if tcp.seq == conn['req_seq']:
-                conn['req_seq'] = tcp.seq + http.length
-                conn['req_header'].append(http.data)
-            # Drop packets with forward gap in SEQ number (as per specs)
-            if tcp.seq <= conn['req_seq']
-                self.pass_packet(packet.bytes, PKT_DIR_OUTGOING)
-
-        # General incoming packet case
-        elif packet.direction == PKT_DIR_INCOMING:
-            if tcp.seq == con['res_seq']:
-                conn['res_seq'] = http.seq + http.length
-                conn['res_header'].append(http.data)
-            # Drop packets with forward gap in SEQ number (as per specs)
-            if tcp.seq <= conn['res_seq']
-                self.pass_packet(packet.bytes, PKT_DIR_INCOMING)
-
-    def handle_syn(self, packet):
-        """
-        Handle outgoing or incoming SYN packets by initializing connection state.
-        """
-        # Distinguish concurrent TCP connections by the internal port used
-        port = packet.internal_port
-        tcp  = packet.transport_header
-        http = packet.application_header
-        # If outgoing SYN packet, create TCP connection state dict
-        if packet.direction == PKT_DIR_OUTGOING:
-            self.conns[port] = {
-                # Next expected SEQ number to send
-                'req_seq'    : tcp.seq,
-                'req_header' : http,
-            }
-        # If incoming SYN packet, update expected SEQ number
-        elif packet.direction == PKT_DIR_INCOMING:
-            # Next expected SEQ number to receive
-            self.conns[port]['res_seq'] = tcp.seq + http.length
-            self.conns[port]['res_header'] = http
-        # Send packet to intended destination
-        self.pass_packet(packet.bytes, packet.direction)
+        return
 
 
     def log(self, conn):

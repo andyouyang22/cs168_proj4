@@ -43,14 +43,24 @@ class Firewall:
         # TODO: Your main firewall code will be here.
         packet = Packet(pkt, pkt_dir)
 
+        # ip = packet.ip_header
+        # tcp = packet.transport_header
+        # print "ip.checksum()  = %d" % ip.checksum()
+        # print "ip._checksum   = %d" % ip._checksum
+        # if packet.transport_protocol == 'tcp':
+        #     print "tcp.checksum() = %d" % tcp.checksum(ip)
+        #     print "tcp._checksum  = %d" % tcp._checksum
+
         # If the packet is an HTTP packet, assemble this packet's payload with the
         # rest of the data received from this TCP connection.
         if packet.transport_protocol == 'tcp' and packet.external_port == '80':
-            self.handle_http_packet(packet)
+            # Return if the HTTP packet has a forward gap in SEQ number
+            if not self.handle_http_packet(packet):
+                return
 
         verdict = self.verdict(packet)
 
-        print "%6s - %s" % (verdict, packet)
+        print "%-8s - %s" % (verdict, packet)
 
         if verdict == 'pass':
             self.pass_packet(packet.bytes, packet.direction)
@@ -83,16 +93,14 @@ class Firewall:
         # 0x02 = SYN flag
         if tcp.flags & 0x02:
             self.handle_syn(packet)
+            return True
 
         # We may have deleted this connection state because we already logged it
         if port not in self.conns:
-            self.pass_packet(packet.bytes, packet.direction)
-            return
+            return True
         conn = self.conns[port]
 
-        # If outgoing FIN packet, delete connection state
-        if packet.direction == PKT_DIR_OUTGOING and tcp.flags & 0x01:
-            del self.conns[port]
+        # If outgoing FIN packet, delete connection state (?)
 
         # General outgoing packet case
         if packet.direction == PKT_DIR_OUTGOING:
@@ -104,8 +112,8 @@ class Firewall:
                 else:
                     conn['req_header'] = http
             # Drop packets with forward gap in SEQ number (as per specs)
-            if tcp.seq <= conn['req_seq']:
-                self.pass_packet(packet.bytes, PKT_DIR_OUTGOING)
+            if tcp.seq > conn['req_seq']:
+                return False
 
         # General incoming packet case
         elif packet.direction == PKT_DIR_INCOMING:
@@ -117,8 +125,8 @@ class Firewall:
                 else:
                     conn['res_header'] = http
             # Drop packets with forward gap in SEQ number (as per specs)
-            if tcp.seq <= conn['res_seq']:
-                self.pass_packet(packet.bytes, PKT_DIR_INCOMING)
+            if tcp.seq > conn['res_seq']:
+                return False
 
     def handle_syn(self, packet):
         """
@@ -128,18 +136,22 @@ class Firewall:
         port = packet.internal_port
         tcp  = packet.transport_header
         http = packet.application_header
+
+        if port not in self.conns:
+            self.conns[port] = {
+                # Whether this current connection has been logged
+                'logged' : False,
+            }
+        conn = self.conns[port]
+
         # If outgoing SYN packet, create TCP connection state dict
         if packet.direction == PKT_DIR_OUTGOING:
-            self.conns[port] = {
-                # Whether or not this current connection has been logged
-                'logged'  : False,
-                # Next expected SEQ number to send
-                'req_seq' : tcp.seq + 1,
-            }
+            # Next expected SEQ number to send
+            conn['req_seq'] = tcp.seq + 1
         # If incoming SYN packet, update expected SEQ number
         elif packet.direction == PKT_DIR_INCOMING:
             # Next expected SEQ number to receive
-            self.conns[port]['res_seq'] = tcp.seq + 1
+            conn['res_seq'] = tcp.seq + 1
 
 
     def pass_packet(self, pkt, pkt_dir):
@@ -190,11 +202,12 @@ class Firewall:
         # Send to internal interface pointing to fixed IP addr 169.229.49.130
 
         # Temporary
-        if packet.Qtype == "AAAA":
+        if packet.qtype == "AAAA":
             return
         
         
         self.pass_packet(packet.bytes, packet.direction)
+        return
 
     def log_packet(self, packet):
         """

@@ -110,6 +110,13 @@ class Packet:
         return ip + tp
 
 
+    def make_dns_response(self):
+        ip = self.ip_header.structify(False)
+        tp = self.transport_header.structify(self.ip_header)
+        dns_header = self.application_header.dns_raw
+        q_and_a = self.application_header.question_and_answer_headers()
+        return "%s%s%s%s" % (ip, tp, dns_header, q_and_a)
+
     def __str__(self):
         direction = ("incoming" if self.direction == 0 else "outgoing")
         int_addr = "10.0.2.15"
@@ -182,7 +189,7 @@ class IPHeader:
 
 
 
-    def structify(self):
+    def structify(self, deny_tcp=True):
         """
         Clones the current state of the packet header fields and returns a byte-
         string representation of the packet.
@@ -284,7 +291,7 @@ class DNSHeader:
 
         self.qdcount = struct.unpack("!H", pkt[start+4:start+6])
         self.ancount = struct.unpack("!H", pkt[start+6:start+8])
-
+        self.dns_raw = pkt[start : start+12]
         self.domain_name = ""
         curr = start + 12
         while True:
@@ -301,13 +308,17 @@ class DNSHeader:
         self.domain_name = self.domain_name[:-1]
         self.qtype = struct.unpack("!H", pkt[curr:curr+2])
         self.question = pkt[start+12:curr+4]
-        
+        self.cls = pkt[curr+4+len(self.doman_name)+2 : curr+4+len(self.doman_name)+2+2]
 
     def make_answer(self):
-        typ = "A"
-        ttl = "1"
-        cls = 
+        typ = struct.pack("!H", "A")
+        ttl = struct.pack("!I", 1)
+        answer = "%s%s%s%s" % (self.doman_name_packed, typ, self.cls, ttl)
+        return answer
+
         
+    def get_questions_and_answer_headers(self):
+        return self.question + self.answer
 
 
 class HTTPHeader:

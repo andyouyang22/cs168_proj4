@@ -190,6 +190,10 @@ class Firewall:
         # Send to internal interface pointing to fixed IP addr 169.229.49.130
 
         # Temporary
+        if packet.Qtype == "AAAA":
+            return
+        
+        
         self.pass_packet(packet.bytes, packet.direction)
 
     def log_packet(self, packet):

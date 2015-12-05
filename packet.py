@@ -92,9 +92,7 @@ class Packet:
             # There will be no body if the packet is just a SYN or ACK
             ip = self.ip_header.length * 4
             tp = self.transport_header.length * 4
-            print "ip len = %s | tcp len = %s" % (ip, tp)
             if self.length > ip + tp:
-                print "starting point is %d" % (ip + tp)
                 header = HTTPHeader(self.bytes[ip+tp:self.length], self.direction)
 
         return (protocol, header)
@@ -104,26 +102,27 @@ class Packet:
         Clones the current state of the packet header fields and returns a byte-
         string representation of the packet.
         """
-        clone = self.bytes
         ip = self.ip_header.structify()
-        tp = self.transport_header.structify()
+        tp = self.transport_header.structify(self.ip_header)
 
         assert len(ip) + len(tp) < self.length  # Remove later
 
-        return ip + tp + clone[len(ip)+len(tp):]
+        return ip + tp
 
 
     def __str__(self):
         direction = ("incoming" if self.direction == 0 else "outgoing")
-        src_addr = ip_int_to_string(self.ip_header.src_addr)
-        src_port = self.transport_header.src_port
-        dst_addr = ip_int_to_string(self.ip_header.dst_addr)
-        dst_port = self.transport_header.dst_port
-        return "%s %s %20s -> %20s" % (
+        int_addr = "10.0.2.15"
+        int_port = self.internal_port
+        ext_addr = ip_int_to_string(self.external_address)
+        ext_port = self.external_port
+        arrow = "<-" if self.direction == 0 else "->"
+        return "%s %s %20s %s %20s" % (
             direction,
             self.transport_protocol,
-            "%s:%s" % (src_addr, src_port),
-            "%s:%s" % (dst_addr, dst_port),
+            "%s:%s" % (int_addr, int_port),
+            arrow,
+            "%s:%s" % (ext_addr, ext_port),
         )
 
 def ip_int_to_string(ip):
@@ -181,15 +180,17 @@ class IPHeader:
 
         self.bytes = pkt[:end]
 
-    def structify(self, deny_tcp):
+
+
+    def structify(self):
         """
         Clones the current state of the packet header fields and returns a byte-
         string representation of the packet.
         """
         dst = socket.inet_aton(self.dst_addr)
         src = socket.inet_aton(self.src_addr)
-        
-        sum = struct.pack('!H', self.checksum)
+
+        sum = struct.pack('!H', self.checksum())
 
         if not deny_tcp:
             dst = socket.inet_aton("169.229.49.130")
@@ -239,9 +240,9 @@ class TCPHeader:
         ip = src_addr + dst_addr + reserved + protocol + length
 
         return checksum(ip + tcp)
-    
 
-    def structify(self):
+
+    def structify(self, ip):
         """
         Clones the current state of the packet header fields and returns a byte-
         string representation of the packet.
@@ -250,7 +251,7 @@ class TCPHeader:
         dst = struct.pack('!H', self.dst_port)
         src = struct.pack('!H', self.src_port)
 
-        sum = struct.pack('!H', self.checksum)
+        sum = struct.pack('!H', self.checksum(ip))
 
         result = src + dst + self.bytes[4:13] + flags + self.bytes[14:16] + checksum + self.bytes[18:20] + self.options
 
@@ -303,7 +304,10 @@ class DNSHeader:
         
 
     def make_answer(self):
-        pass    
+        typ = "A"
+        ttl = "1"
+        cls = 
+        
 
 
 class HTTPHeader:
@@ -313,9 +317,6 @@ class HTTPHeader:
 
         self.direction = direction
 
-        # Whether or not the entire HTTP header has been received
-        self.parsed = self.data.find('\r\n\r\n') != -1
-
         # Fields needed for 'log' verdict
         self.host_name   = ""
         self.method      = ""
@@ -324,6 +325,7 @@ class HTTPHeader:
         self.status_code = ""
         self.object_size = -1
 
+        self.parsed = False
         self.parse()
 
     @property
@@ -350,6 +352,7 @@ class HTTPHeader:
         # Ignore HTTP body content (but record size)
         end = self.data.find('\r\n\r\n')
         if end >= 0:
+            end += len('\r\n\r\n')
             self.data = self.data[:end]
             if not self.parsed:
                 self.parsed = True
@@ -360,7 +363,6 @@ class HTTPHeader:
         #if self.direction == PKT_DIR_OUTGOING:
         #    self.parse_outgoing()
         #else:
-        #    self.parse_incoming()
 
 
     def parse_outgoing(self):
@@ -390,14 +392,13 @@ class HTTPHeader:
         # Parse fields in the first line (e.g. "HTTP/1.1 200 OK")
         end = self.data.find('\r\n')
         tokens = self.data[:end].split(' ')
-        print "incoming tokens is %s" % tokens
         self.version = tokens[0]
         self.status_code = tokens[1]
 
         # Find "Content-Length" field if present
         size = self.data.find("Content-Length:")
         if size != -1:
-            start = size + len("Content-Length")
+            start = size + len("Content-Length:")
             frag = self.data[start:]
             # Find the end of the line
             end = frag.find('\r\n')

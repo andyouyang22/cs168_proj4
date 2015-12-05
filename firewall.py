@@ -145,12 +145,12 @@ class Firewall:
         conn = self.conns[port]
 
         # General outgoing packet case
-        elif packet.direction == PKT_DIR_OUTGOING:
+        if packet.direction == PKT_DIR_OUTGOING:
             if tcp.seq == conn['req_seq']:
                 conn['req_seq'] = tcp.seq + http.length
                 conn['req_header'].append(http.data)
             # Drop packets with forward gap in SEQ number (as per specs)
-            if tcp.seq <= conn['req_seq']
+            if tcp.seq <= conn['req_seq']:
                 self.pass_packet(packet.bytes, PKT_DIR_OUTGOING)
 
         # General incoming packet case
@@ -159,7 +159,7 @@ class Firewall:
                 conn['res_seq'] = http.seq + http.length
                 conn['res_header'].append(http.data)
             # Drop packets with forward gap in SEQ number (as per specs)
-            if tcp.seq <= conn['res_seq']
+            if tcp.seq <= conn['res_seq']:
                 self.pass_packet(packet.bytes, PKT_DIR_INCOMING)
 
     def handle_syn(self, packet):

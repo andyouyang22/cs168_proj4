@@ -91,7 +91,7 @@ class Packet:
             ip = self.ip_header.length * 4
             tp = self.transport_header.length * 4
             if self.length > ip + tp:
-                header = HTTPHeader(self.bytes[ip+tp:self.length])
+                header = HTTPHeader(self.bytes[ip+tp:self.length], self.direction)
 
         return (protocol, header)
 
@@ -261,6 +261,7 @@ class HTTPHeader:
     def __init__(self, pkt, direction):
         # The contents of the HTTP packet in string form
         self.data = binary_to_string(pkt)
+        print self.data
         self.body = ""
 
         self.direction = direction
@@ -319,7 +320,9 @@ class HTTPHeader:
     def parse_outgoing(self):
         # Parse fields in the first line (e.g. "GET / HTTP/1.1")
         end = self.data.find('\r\n')
+        print 'end is %s' % end
         tokens = self.data[:end].split(' ')
+        print "tokens is %s" % tokens
         self.method  = tokens[0]
         self.path    = tokens[1]
         self.version = tokens[2]
@@ -359,8 +362,9 @@ def binary_to_string(binary):
     """
     Convert the given packed binary with the given length into an ASCII string.
     """
-    result = ""
+    results = ""
     for i in range(len(binary)):
+        print results
         ch = struct.unpack("!c", binary[i])[0]
         results += ch
-    return result
+    return results

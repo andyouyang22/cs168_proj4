@@ -139,7 +139,7 @@ def ip_int_to_string(ip):
     return "%s.%s.%s.%s" % (b[0], b[1], b[2], b[3])
 
 
-def checksum(data, protocol=''):
+def checksum(data):
     """
     Compute a checksum for the given binary data with the given length (in bytes).
     """
@@ -153,18 +153,11 @@ def checksum(data, protocol=''):
 
     # Calculate value of 16-bit word and add to cumulative checksum
     for i in range(0, length, 2):
-    	# Simulate zeroing out the checksum field by skipping it
-    	if protocol == 'ip' and i == 10:
-    		continue
-    	if protocol == 'tcp' and i == 16:
-    		continue
-
         word, = struct.unpack("!H", data[i:i+2])
         checksum += word
 
     # "Fold" 32-bit checksum into 16-bit word by adding two 16-bit halves
-    checksum += (checksum >> 16)
-    return ~checksum & 0xffff
+    return ~(checksum + (checksum >> 16)) & 0xffff
 
 
 """
@@ -177,7 +170,7 @@ class IPHeader:
 
         self.total_len, = struct.unpack('!H', pkt[2:4])
         self.protocol,  = struct.unpack('!B', pkt[9])
-        self.checksum,  = struct.unpack('!H', pkt[10:12])
+        self._checksum,  = struct.unpack('!H', pkt[10:12])
         self.src_addr   = socket.inet_ntoa(pkt[12:16])
         self.dst_addr   = socket.inet_ntoa(pkt[16:20])
 
@@ -188,6 +181,20 @@ class IPHeader:
 
         self.bytes = pkt[:end]
 
+    def checksum(self):
+        dst = socket.inet_aton(self.dst_addr)
+        src = socket.inet_aton(self.src_addr)
+
+        # Zero out the current checksum
+        blank = struct.pack('!H', 0x0000)
+
+        result = self.bytes[:10] + blank + src + dst + self.options
+
+        assert len(result) == self.length * 4  # Remove later
+
+        return checksum(result)
+    
+
     def structify(self):
         """
         Clones the current state of the packet header fields and returns a byte-
@@ -196,11 +203,11 @@ class IPHeader:
         dst = socket.inet_aton(self.dst_addr)
         src = socket.inet_aton(self.src_addr)
         
-        sum = checksum(self.bytes, 'ip')
+        sum = struct.pack('!H', self.checksum)
 
         result = self.bytes[:10] + sum + src + dst + self.options
 
-        assert len(results) == self.length * 4  # Remove later
+        assert len(result) == self.length * 4  # Remove later
 
         return result
 
@@ -216,26 +223,49 @@ class TCPHeader:
         offset,        = struct.unpack('!B', header[12])
         self.length    = offset >> 4
         self.flags,    = struct.unpack('!B', header[13])
-        self.checksum, = struct.unpack('!H', header[16:18])
+        self._checksum, = struct.unpack('!H', header[16:18])
 
         end = self.length * 4
         self.options = None
         if self.length > 5:
             self.options = header[20:end]
 
+    def checksum(self, ip):
+        flags = struct.pack('!B', self.flags)
+        dst_port = struct.pack('!H', self.dst_port)
+        src_port = struct.pack('!H', self.src_port)
+
+        # Zero out the current checksum
+        blank = struct.pack('!H', 0x0000)
+
+        tcp = src_port + dst_port + self.bytes[4:13] + flags + self.bytes[14:16] + blank + self.bytes[18:]
+
+        # Generate pseudo IP header
+        src_addr = socket.inet_aton(ip.src_addr)
+        dst_addr = socket.inet_aton(ip.dst_addr)
+        reserved = struct.pack('!B', 0x00)
+        protocol = struct.pack('!B', ip.protocol)
+        length   = struct.pack('!H', len(self.bytes))
+
+        ip = src_addr + dst_addr + reserved + protocol + length
+
+        return checksum(ip + tcp)
+    
+
     def structify(self):
         """
         Clones the current state of the packet header fields and returns a byte-
         string representation of the packet.
         """
-        packed_flags = struct.pack('!B', self.flags)
-        packed_dst_port = struct.pack('!H', self.dst_port)
-        packed_src_port = struct.pack('!H', self.src_port)
-        packed_checksum = struct.pack('!H', self.checksum)
+        flags = struct.pack('!B', self.flags)
+        dst = struct.pack('!H', self.dst_port)
+        src = struct.pack('!H', self.src_port)
 
-        packed_final = packed_src_port + packed_dst_port + self.bytes[4:13] + packed_flags + self.bytes[14:16] + packed_checksum + self.bytes[18:20] + self.options
-        self.bytes = packed_final
+        sum = struct.pack('!H', self.checksum)
 
+        result = src + dst + self.bytes[4:13] + flags + self.bytes[14:16] + checksum + self.bytes[18:20] + self.options
+
+        return result
 
 class UDPHeader:
     def __init__(self, header):

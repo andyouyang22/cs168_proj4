@@ -51,11 +51,6 @@ class Firewall:
         verdict = self.verdict(packet)
 
         print "%6s - %s" % (verdict, packet)
-        ip = packet.ip_header
-        print "ip_header.checksum        = %d" % ip.checksum
-        print "checksum(ip_header.bytes) = %d" % checksum(ip.bytes, 'ip')
-        print "ip_header.length          = %d" % ip.length
-        print "len(ip_header.bytes)      = %s" % len(ip.bytes)
 
         if verdict == 'pass':
             self.pass_packet(packet.bytes, packet.direction)

@@ -82,17 +82,19 @@ class Packet:
         header = None
 
         # Note that IP and TCP header lengths are expressed in "words" (4 bytes)
-
-        if self.transport_protocol == 'udp' and self.external_port == 53:
+        print "inside dah"
+        if self.transport_protocol == 'udp' and self.external_port == '53':
+            
             protocol = 'dns'
             header = DNSHeader(self.bytes, self.ip_header.length)
 
         # If protocol is HTTP, header will store the packet payload
-        if self.transport_protocol == 'tcp' and self.external_port == 80:
+        if self.transport_protocol == 'tcp' and self.external_port == '80':
             protocol = 'http'
             # There will be no body if the packet is just a SYN or ACK
             ip = self.ip_header.length * 4
             tp = self.transport_header.length * 4
+            print "ip len = %s | tcp len = %s" % (ip, tp)
             if self.length > ip + tp:
                 print "starting point is %d" % (ip + tp)
                 header = HTTPHeader(self.bytes[ip+tp:self.length], self.direction)
@@ -264,7 +266,7 @@ class HTTPHeader:
     def __init__(self, pkt, direction):
         # The contents of the HTTP packet in string form
         self.data = binary_to_string(pkt)
-        print self.data
+        print "header data is %s" % self.data
         self.body = ""
 
         self.direction = direction
@@ -346,6 +348,7 @@ class HTTPHeader:
         # Parse fields in the first line (e.g. "HTTP/1.1 200 OK")
         end = self.data.find('\r\n')
         tokens = self.data[:end].split(' ')
+        print "incoming tokens is %s" % tokens
         self.version = tokens[0]
         self.status_code = tokens[1]
 

@@ -167,23 +167,25 @@ Header classes used to parse fields from packet headers.
 """
 
 class IPHeader:
-    def __init__(self, header):
-        self.bytes = header
+    def __init__(self, pkt):
+        self.bytes = pkt
 
-        first, = struct.unpack('!B', header[0])
+        first, = struct.unpack('!B', pkt[0])
         first  = bin(first)
 
         self.length     = int(first[6:], 2)
-        self.total_len, = struct.unpack('!H', header[2:4])
-        self.protocol,  = struct.unpack('!B', header[9])
-        self.checksum,  = struct.unpack('!H', header[10:12])
-        self.src_addr   = socket.inet_ntoa(header[12:16])
-        self.dst_addr   = socket.inet_ntoa(header[16:20])
+        self.total_len, = struct.unpack('!H', pkt[2:4])
+        self.protocol,  = struct.unpack('!B', pkt[9])
+        self.checksum,  = struct.unpack('!H', pkt[10:12])
+        self.src_addr   = socket.inet_ntoa(pkt[12:16])
+        self.dst_addr   = socket.inet_ntoa(pkt[16:20])
 
         end = self.length * 4
         self.options = None
         if self.length > 5:
-            self.options = header[20:end]
+            self.options = pkt[20:end]
+
+        self.bytes = pkt[:end]
 
     def structify(self):
         """

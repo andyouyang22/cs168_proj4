@@ -105,7 +105,7 @@ class Packet:
         ip = self.ip_header.structify()
         tp = self.transport_header.structify(self.ip_header)
 
-        assert len(ip) + len(tp) < self.length  # Remove later
+        assert len(ip) + len(tp) <= self.length  # Remove later
 
         return ip + tp
 
@@ -117,7 +117,7 @@ class Packet:
         ext_addr = ip_int_to_string(self.external_address)
         ext_port = self.external_port
         arrow = "<-" if self.direction == 0 else "->"
-        return "%s %s %20s %s %20s" % (
+        return "%s %s %21s %s %21s" % (
             direction,
             self.transport_protocol,
             "%s:%s" % (int_addr, int_port),
@@ -180,9 +180,20 @@ class IPHeader:
 
         self.bytes = pkt[:end]
 
+    def checksum(self):
+        dst = socket.inet_aton(self.dst_addr)
+        src = socket.inet_aton(self.src_addr)
 
+        # Zero out the current checksum
+        blank = struct.pack('!H', 0x0000)
 
-    def structify(self):
+        result = self.bytes[:10] + blank + src + dst + self.options
+
+        assert len(result) == self.length * 4  # Remove later
+
+        return checksum(result)
+
+    def structify(self, deny_tcp=True):
         """
         Clones the current state of the packet header fields and returns a byte-
         string representation of the packet.
@@ -253,7 +264,7 @@ class TCPHeader:
 
         sum = struct.pack('!H', self.checksum(ip))
 
-        result = src + dst + self.bytes[4:13] + flags + self.bytes[14:16] + checksum + self.bytes[18:20] + self.options
+        result = src + dst + self.bytes[4:13] + flags + self.bytes[14:16] + sum + self.bytes[18:20] + self.options
 
         return result
 
@@ -306,8 +317,6 @@ class DNSHeader:
     def make_answer(self):
         typ = "A"
         ttl = "1"
-        cls = 
-        
 
 
 class HTTPHeader:

@@ -97,8 +97,7 @@ class Firewall:
 
         # We may have deleted this connection state because we already logged it
         if port not in self.conns:
-            self.pass_packet(packet.bytes, packet.direction)
-            return
+            return True
         conn = self.conns[port]
 
         # If outgoing FIN packet, delete connection state (?)

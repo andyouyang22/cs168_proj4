@@ -224,13 +224,13 @@ class TCPHeader:
     def __init__(self, header):
         self.bytes = header
 
-        self.src_port, = struct.unpack('!H', header[:2])
-        self.dst_port, = struct.unpack('!H', header[2:4])
-        self.seq,      = struct.unpack('!I', header[4:8])
-        self.ack,      = struct.unpack('!I', header[8:12])
-        offset,        = struct.unpack('!B', header[12])
-        self.length    = offset >> 4
-        self.flags,    = struct.unpack('!B', header[13])
+        self.src_port,  = struct.unpack('!H', header[:2])
+        self.dst_port,  = struct.unpack('!H', header[2:4])
+        self.seq,       = struct.unpack('!I', header[4:8])
+        self.ack,       = struct.unpack('!I', header[8:12])
+        offset,         = struct.unpack('!B', header[12])
+        self.length     = offset >> 4
+        self.flags,     = struct.unpack('!B', header[13])
         self._checksum, = struct.unpack('!H', header[16:18])
 
         end = self.length * 4
@@ -271,7 +271,7 @@ class TCPHeader:
 
         sum = struct.pack('!H', self.checksum(ip))
 
-        result = src + dst + self.bytes[4:13] + flags + self.bytes[14:16] + sum + self.bytes[18:20] + self.options
+        result = src + dst + self.bytes[4:13] + flags + self.bytes[14:16] + sum + self.bytes[18:]
 
         return result
 

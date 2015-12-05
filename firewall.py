@@ -173,7 +173,7 @@ class Firewall:
             return
 
         # Set RST (0x04) and ACK (0x10) flags
-        packet.transport_header.tcp_flags = 0x14
+        packet.transport_header.flags = 0x14
 
         # Swap destination and source address info to send response
         my_addr = packet.ip_header.dst_addr
@@ -186,7 +186,9 @@ class Firewall:
         packet.ip_header.dst_addr = dst_addr
         packet.transport_header.dst_port = dst_port
 
-        # Calculate and set the checksum fields (performed in packet.structify)
+        b = packet.structify()
+        i = packet.ip_header.length * 4
+        d, = struct.unpack('!B', b[i+13])
 
         # Convert the packet to a packed binary and send response to source
         self.pass_packet(packet.structify(), PKT_DIR_INCOMING)

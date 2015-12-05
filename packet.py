@@ -99,14 +99,14 @@ class Packet:
 
         return (protocol, header)
 
-    def clone(self):
+    def structify(self):
         """
         Clones the current state of the packet header fields and returns a byte-
         string representation of the packet.
         """
         clone = self.bytes
-        ip = self.ip_header.clone()
-        tp = self.transport_header.clone()
+        ip = self.ip_header.structify()
+        tp = self.transport_header.structify()
 
         assert len(ip) + len(tp) < self.length  # Remove later
 
@@ -139,7 +139,7 @@ def ip_int_to_string(ip):
     return "%s.%s.%s.%s" % (b[0], b[1], b[2], b[3])
 
 
-def checksum(data, length):
+def checksum(data):
     """
     Compute a checksum for the given binary data with the given length (in bytes).
     """
@@ -147,7 +147,7 @@ def checksum(data, length):
     checksum = 0x00000000
 
     # Append a zero byte if length is odd
-    data = data[:length]
+    length = len(data)
     if (length & 1):
         data = data + '\x00'
 
@@ -167,23 +167,25 @@ Header classes used to parse fields from packet headers.
 """
 
 class IPHeader:
-    def __init__(self, pkt):
-        first, = struct.unpack('!B', pkt[0])
+    def __init__(self, header):
+        self.bytes = header
+
+        first, = struct.unpack('!B', header[0])
         first  = bin(first)
 
         self.length     = int(first[6:], 2)
-        self.total_len, = struct.unpack('!H', pkt[2:4])
-        self.protocol,  = struct.unpack('!B', pkt[9])
-        self.checksum,  = struct.unpack('!H', pkt[10:12])
-        self.src_addr   = socket.inet_ntoa(pkt[12:16])
-        self.dst_addr   = socket.inet_ntoa(pkt[16:20])
+        self.total_len, = struct.unpack('!H', header[2:4])
+        self.protocol,  = struct.unpack('!B', header[9])
+        self.checksum,  = struct.unpack('!H', header[10:12])
+        self.src_addr   = socket.inet_ntoa(header[12:16])
+        self.dst_addr   = socket.inet_ntoa(header[16:20])
 
         end = self.length * 4
         self.options = None
         if self.length > 5:
-            self.options = pkt[20:end]
+            self.options = header[20:end]
 
-    def clone(self):
+    def structify(self):
         """
         Clones the current state of the packet header fields and returns a byte-
         string representation of the packet.
@@ -209,7 +211,7 @@ class TCPHeader:
         if self.length > 5:
             self.options = header[20:end]
 
-    def clone(self):
+    def structify(self):
         """
         Clones the current state of the packet header fields and returns a byte-
         string representation of the packet.

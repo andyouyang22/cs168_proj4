@@ -92,9 +92,7 @@ class Packet:
             # There will be no body if the packet is just a SYN or ACK
             ip = self.ip_header.length * 4
             tp = self.transport_header.length * 4
-            print "ip len = %s | tcp len = %s" % (ip, tp)
             if self.length > ip + tp:
-                print "starting point is %d" % (ip + tp)
                 header = HTTPHeader(self.bytes[ip+tp:self.length], self.direction)
 
         return (protocol, header)
@@ -114,15 +112,17 @@ class Packet:
 
     def __str__(self):
         direction = ("incoming" if self.direction == 0 else "outgoing")
-        src_addr = ip_int_to_string(self.ip_header.src_addr)
-        src_port = self.transport_header.src_port
-        dst_addr = ip_int_to_string(self.ip_header.dst_addr)
-        dst_port = self.transport_header.dst_port
-        return "%s %s %20s -> %20s" % (
+        int_addr = "10.0.2.15"
+        int_port = self.internal_port
+        ext_addr = ip_int_to_string(self.external_address)
+        ext_port = self.external_port
+        arrow = "<-" if self.direction == 0 else "->"
+        return "%s %s %20s %s %20s" % (
             direction,
             self.transport_protocol,
-            "%s:%s" % (src_addr, src_port),
-            "%s:%s" % (dst_addr, dst_port),
+            "%s:%s" % (int_addr, int_port),
+            arrow,
+            "%s:%s" % (ext_addr, ext_port),
         )
 
 def ip_int_to_string(ip):
@@ -394,14 +394,13 @@ class HTTPHeader:
         # Parse fields in the first line (e.g. "HTTP/1.1 200 OK")
         end = self.data.find('\r\n')
         tokens = self.data[:end].split(' ')
-        print "incoming tokens is %s" % tokens
         self.version = tokens[0]
         self.status_code = tokens[1]
 
         # Find "Content-Length" field if present
         size = self.data.find("Content-Length:")
         if size != -1:
-            start = size + len("Content-Length")
+            start = size + len("Content-Length:")
             frag = self.data[start:]
             # Find the end of the line
             end = frag.find('\r\n')

@@ -80,7 +80,6 @@ class Firewall:
         # 0x02 = SYN flag
         if tcp.flags & 0x02:
             self.handle_syn(packet)
-            return
 
         # If FIN packet, log req-res pair if needed and delete connection state
         if tcp.flags & 0x01 and port in self.conns:
@@ -90,6 +89,7 @@ class Firewall:
         # We may have deleted this connection state because we already logged it
         if port not in self.conns:
             print "Connection for port %s not found" % port
+            self.pass_packet(packet.bytes, packet.direction)
             return
         conn = self.conns[port]
 
@@ -139,8 +139,6 @@ class Firewall:
         elif packet.direction == PKT_DIR_INCOMING:
             # Next expected SEQ number to receive
             self.conns[port]['res_seq'] = tcp.seq + 1
-        # Send packet to intended destination
-        self.pass_packet(packet.bytes, packet.direction)
 
 
     def pass_packet(self, pkt, pkt_dir):
@@ -217,7 +215,7 @@ class Firewall:
             return
         req = conn['req_header']
         res = conn['res_header']
-        line = "%s %s %s %s %s %s" % (
+        line = "%s %s %s %s %s %s\r\n" % (
             req.host_name,
             req.method,
             req.path,
@@ -227,6 +225,7 @@ class Firewall:
         )
         self.log.write(line)
         self.log.flush()
+        print "logged -- %s" % line
         conn['logged'] = True
 
     def verdict(self, packet):

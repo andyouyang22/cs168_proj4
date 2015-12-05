@@ -114,49 +114,81 @@ class Firewall:
 
     def log_packet(self, packet):
         """
-        We only want to log transactions, so we only do the log on response and
-        otherwise we just store info
+        Assemble TCP packets to form HTTP headers. Parse HTTP request and response
+        headers to collect information necessary for logging, and log req-res pairs
+        when the data is available.
 
         Log messages should be one line and space-delimited with this format:
         <host_name> <method> <path> <version> <status_code> <object_size>
         """
         assert packet.transport_protocol == 'tcp'  # Remove later
 
-        tcp = packet.transport_header
+        # Distinguish concurrent TCP connections by the internal port used
+        port = packet.internal_port
+        tcp  = packet.transport_header
         http = packet.application_header
 
-        if packet.direction == PKT_DIR_OUTGOING:
-            # If SYN packet, create TCP connection state dict
-            if tcp.flags & 0x02:
-                self.conns[tcp.seq+1] = {
-                    'seq'  : tcp.seq,
-                    'ack'  : -1,
-                    'req'  : http,
-                    'res'  : None,
-                }
-                return
+        # If SYN packet, create TCP connection state dict
+        if packet.direction == PKT_DIR_OUTGOING and tcp.flags & 0x02:
+            self.conns[port] = {
+                # Next expected SEQ number to send
+                'req_seq'    : tcp.seq,
+                'req_header' : http,
+                # Next expected SEQ number to receive
+                'res_seq'    : -1,
+                'res_header' : None,
+            }
+            return
 
-            conn = self.conns[tcp.ack]
+        # If FIN packet, log req-res pair if needed and delete connection state
+        if tcp.flags & 0x01:
+            self.log(self.conns[port])  # TODO: check if already logged
+            del self.conns[port]
 
-        else:
-            conn = self.conns[tcp.ack]
+        # We may have deleted this connection state because we already logged it
+        if port not in self.conns:
+            print "Connection for port %s not found" % port
+            return
+        conn = self.conns[port]
 
-            # If SYN ACK packet, update TCP connection state dict
-            if tcp.flags & 0x02:
-                conn['ack'] = tcp.ack
+        # Drop packets with a forward gap in SEQ number (as per specs)
+        if packet.direction == PKT_DIR_INCOMING and tcp.seq > conn['res_seq']:
+            return
 
-            if tcp.flags & 0x01:
-                line = "%s %s %s %s %s %s" % (
-                    req.host_name,
-                    req.method,
-                    req.path,
-                    req.version,
-                    res.status_code,
-                    res.object_size
-                )
-                self.log_file.write(line)
-                self.log_file.flush()
+        elif packet.direction == PKT_DIR_OUTGOING:
+            # If we are sending a new TCP packet (as opposed to resending), update
+            # the highest SEQ number sent for this connection
+            if tcp.seq > conn['seq']:
+                conn['req_seq'] = tcp.seq
+                conn['req_ack'] = tcp.seq + http.length
+                conn['req_header'].append(http.data)
+            # Regardless, send the request packet to HTTP server
+            self.pass_packet(packet.bytes, PKT_DIR_OUTGOING)
 
+        elif packet.direction == PKT_DIR_INCOMING:
+            if not conn['res_header']:
+                conn['res_header'] = http
+                conn['res_seq'] = http.seq + http.length
+
+            conn['res_ack'] = tcp.ack
+
+
+    def log(self, conn):
+        """
+        Log the given HTTP connection.
+        """
+        req = conn['req']
+        res = conn['res']
+        line = "%s %s %s %s %s %s" % (
+            req.host_name,
+            req.method,
+            req.path,
+            req.version,
+            res.status_code,
+            res.object_size
+        )
+        self.log.write(line)
+        self.log.flush()
 
     def verdict(self, packet):
         """

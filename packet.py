@@ -139,7 +139,7 @@ def ip_int_to_string(ip):
     return "%s.%s.%s.%s" % (b[0], b[1], b[2], b[3])
 
 
-def checksum(data):
+def checksum(data, protocol=''):
     """
     Compute a checksum for the given binary data with the given length (in bytes).
     """
@@ -153,13 +153,18 @@ def checksum(data):
 
     # Calculate value of 16-bit word and add to cumulative checksum
     for i in range(0, length, 2):
+    	# Simulate zeroing out the checksum field by skipping it
+    	if protocol == 'ip' and i == 10:
+    		continue
+    	if protocol == 'tcp' and i == 16:
+    		continue
+
         word, = struct.unpack("!H", data[i:i+2])
         checksum += word
 
     # "Fold" 32-bit checksum into 16-bit word by adding two 16-bit halves
-    checksum = (checksum >> 16) + (checksum & 0xffff)
-
-    return checksum
+    checksum += (checksum >> 16)
+    return ~checksum & 0xffff
 
 
 """
@@ -177,7 +182,7 @@ class IPHeader:
         self.dst_addr   = socket.inet_ntoa(pkt[16:20])
 
         end = self.length * 4
-        self.options = None
+        self.options = ""
         if self.length > 5:
             self.options = pkt[20:end]
 
@@ -188,12 +193,16 @@ class IPHeader:
         Clones the current state of the packet header fields and returns a byte-
         string representation of the packet.
         """
-        packed_dst = socket.inet_aton(self.dst_addr)
-        packed_src = socket.inet_aton(self.src_addr)
-        packed_checksum = struct.pack("!H", self.checksum)
+        dst = socket.inet_aton(self.dst_addr)
+        src = socket.inet_aton(self.src_addr)
         
-        packed_final = self.bytes[:10] + packed_checksum + packed_src + packed_dst + self.options
-        self.bytes = packed_final 
+        sum = checksum(self.bytes, 'ip')
+
+        result = self.bytes[:10] + sum + src + dst + self.options
+
+        assert len(results) == self.length * 4  # Remove later
+
+        return result
 
 
 class TCPHeader:

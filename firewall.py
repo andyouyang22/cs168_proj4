@@ -70,7 +70,8 @@ class Firewall:
         """
         Assemble TCP packets to form HTTP headers. Drop packets that have forward
         gaps in SEQ number. Note that this method is called any time the firewall
-        receives an HTTP packet (protocol = TCP, port = 80).
+        receives an HTTP packet (protocol = TCP, port = 80). Note also that this
+        method does not perform any logging.
         """
         # Distinguish concurrent TCP connections by the internal port used
         port = packet.internal_port
@@ -87,16 +88,9 @@ class Firewall:
             return
         conn = self.conns[port]
 
-        # If FIN packet, log req-res pair if needed and delete connection state
-        if tcp.flags & 0x01:
-            if 'req_header' in conn and 'res_header' in conn:
-                self.log_connection(self.conns[port])
+        # If outgoing FIN packet, delete connection state
+        if packet.direction == PKT_DIR_OUTGOING and tcp.flags & 0x01:
             del self.conns[port]
-
-        # If all log data has been received, parse the data and log the connection
-        if 'req_header' in conn and 'res_header' in conn:
-            if conn['req_header'].parsed and conn['res_header'].parsed:
-                self.log_connection(conn)
 
         # General outgoing packet case
         if packet.direction == PKT_DIR_OUTGOING:
@@ -198,29 +192,26 @@ class Firewall:
 
     def log_packet(self, packet):
         """
-        Assemble TCP packets to form HTTP headers. Parse HTTP request and response
-        headers to collect information necessary for logging, and log req-res pairs
-        when the data is available.
-
-        Log messages should be one line and space-delimited with this format:
-        <host_name> <method> <path> <version> <status_code> <object_size>
-        """
-        assert packet.transport_protocol == 'tcp'  # Remove later
-
-        return
-
-
-    def log_connection(self, conn):
-        """
         Log the given HTTP connection. Note that if a connection contains multiple
         HTTP request-response pairs, the 'req_header' and 'res_header' fields will
         be reset. This method should be called again afterwards to log this pair.
         """
+        port = packet.internal_port
+        if port not in self.conns:
+            return
+        conn = self.conns[port]
+
         # Return if we have already logged this connection
         if conn['logged']:
             return
+        # Return if either request or response field is missing
+        if 'req_header' not in conn or 'res_header' not in conn:
+            return
         req = conn['req_header']
         res = conn['res_header']
+        if not req.parsed and not res.parsed:
+            return
+
         line = "%s %s %s %s %s %s\r\n" % (
             req.host_name,
             req.method,

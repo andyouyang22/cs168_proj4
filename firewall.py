@@ -81,17 +81,17 @@ class Firewall:
         if tcp.flags & 0x02:
             self.handle_syn(packet)
 
-        # If FIN packet, log req-res pair if needed and delete connection state
-        if tcp.flags & 0x01 and port in self.conns:
-            self.log_connection(self.conns[port])  # TODO: check if already logged
-            del self.conns[port]
-
         # We may have deleted this connection state because we already logged it
         if port not in self.conns:
             self.pass_packet(packet.bytes, packet.direction)
             return
-
         conn = self.conns[port]
+
+        # If FIN packet, log req-res pair if needed and delete connection state
+        if tcp.flags & 0x01:
+            if 'req_header' in conn and 'res_header' in conn:
+                self.log_connection(self.conns[port])
+            del self.conns[port]
 
         # If all log data has been received, parse the data and log the connection
         if 'req_header' in conn and 'res_header' in conn:
@@ -216,6 +216,7 @@ class Firewall:
         HTTP request-response pairs, the 'req_header' and 'res_header' fields will
         be reset. This method should be called again afterwards to log this pair.
         """
+        # Return if we have already logged this connection
         if conn['logged']:
             return
         req = conn['req_header']

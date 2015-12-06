@@ -325,7 +325,7 @@ class Firewall:
                 if http.host_name != "":
                     return matches_host_name(rule['host_name'], http.host_name)
             # Use external address if host name not supplied in HTTP header
-            return matches_host(rule['host_name'], addr)
+            return matches_host_name(rule['host_name'], addr)
 
         # If both exteral address and port match the target, return True
         if matches_address(addr, rule, self.geos):

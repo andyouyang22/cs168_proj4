@@ -427,13 +427,9 @@ class HTTPHeader:
         # Parse fields in the first line (e.g. "GET / HTTP/1.1")
         end = self.data.find('\r\n')
         tokens = self.data[:end].split(' ')
-        print "outgoing token[0] = %s" % tokens[0]
-        if len(tokens) < 3:
-            print "outgoing: %s" % tokens
-        else:
-            self.method  = tokens[0]
-            self.path    = tokens[1]
-            self.version = tokens[2]
+        self.method  = tokens[0]
+        self.path    = tokens[1]
+        self.version = tokens[2]
 
         # Find "Host" field if present
         host = self.data.find("Host:")
@@ -452,12 +448,8 @@ class HTTPHeader:
         # Parse fields in the first line (e.g. "HTTP/1.1 200 OK")
         end = self.data.find('\r\n')
         tokens = self.data[:end].split(' ')
-        print "outgoing token[0] = %s" % tokens[0]
-        if len(tokens) < 2:
-            print "incoming: %s" % tokens
-        else:
-            self.version = tokens[0]
-            self.status_code = tokens[1]
+        self.version = tokens[0]
+        self.status_code = tokens[1]
 
         # Find "Content-Length" field if present
         size = self.data.find("Content-Length:")

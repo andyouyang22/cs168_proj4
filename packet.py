@@ -108,7 +108,7 @@ class Packet:
         if self.application_header != None:
             ap = self.application_header.structify()
 
-        assert len(ip) + len(tp) + len(ap) <= self.length  # Remove later
+        assert len(ip) + len(tp) + len(ap) == self.length  # Remove later
 
         return ip + tp + ap
 
@@ -237,11 +237,12 @@ class TCPHeader:
         flags = struct.pack('!B', self.flags)
         dst_port = struct.pack('!H', self.dst_port)
         src_port = struct.pack('!H', self.src_port)
+        ack    = struct.pack('!I', self.ack)
 
         # Zero out the current checksum
         blank = struct.pack('!H', 0x0000)
 
-        tcp = src_port + dst_port + self.bytes[4:13] + flags + self.bytes[14:16] + blank + self.bytes[18:]
+        tcp = src_port + dst_port + self.bytes[4:8] + ack + self.bytes[12] + flags + self.bytes[14:16] + blank + self.bytes[18:]
 
         # Generate pseudo IP header
         src_addr = socket.inet_aton(ip.src_addr)
@@ -261,14 +262,15 @@ class TCPHeader:
         string representation of the packet.
         """
         flags  = struct.pack('!B', self.flags)
-        dst    = struct.pack('!H', self.dst_port)
         src    = struct.pack('!H', self.src_port)
-        length = self.length
+        dst    = struct.pack('!H', self.dst_port)
+        ack    = struct.pack('!I', self.ack)
+        length = self.length * 4
         pkt    = self.bytes
 
         sum = struct.pack('!H', self.checksum(ip))
 
-        return src + dst + pkt[4:13] + flags + pkt[14:16] + sum + pkt[18:length]
+        return src + dst + pkt[4:8] + ack + pkt[12] + flags + pkt[14:16] + sum + pkt[18:length]
 
 
 class UDPHeader:

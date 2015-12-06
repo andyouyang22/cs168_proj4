@@ -169,25 +169,31 @@ class Firewall:
         Drop the packet. Respond with a TCP packet with the RST flag set to 1. This
         will prevent the sending application from sending subsequent SYN packets.
         """
-        if packet.direction != PKT_DIR_OUTGOING:
+        if packet.direction == PKT_DIR_INCOMING:
             return
 
+        ip = packet.ip_header
+        tcp = packet.transport_header
+
         # Set RST (0x04) and ACK (0x10) flags
-        packet.transport_header.flags = 0x14
+        tcp.flags = 0x14
 
         # Swap destination and source address info to send response
-        my_addr = packet.ip_header.dst_addr
-        my_port = packet.transport_header.dst_port
-        dst_addr = packet.ip_header.src_addr
-        dst_port = packet.transport_header.src_port
+        my_addr = ip.dst_addr
+        my_port = tcp.dst_port
+        dst_addr = ip.src_addr
+        dst_port = tcp.src_port
 
-        packet.ip_header.src_addr = my_addr
-        packet.transport_header.src_port = my_port
-        packet.ip_header.dst_addr = dst_addr
-        packet.transport_header.dst_port = dst_port
+        ip.src_addr = my_addr
+        tcp.src_port = my_port
+        ip.dst_addr = dst_addr
+        tcp.dst_port = dst_port
+
+        # Set ACK field to SEQ + 1
+        tcp.ack = tcp.seq + 1
 
         b = packet.structify()
-        i = packet.ip_header.length * 4
+        i = ip.length * 4
         d, = struct.unpack('!B', b[i+13])
 
         # Convert the packet to a packed binary and send response to source

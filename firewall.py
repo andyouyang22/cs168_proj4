@@ -5,7 +5,7 @@ from main import (
     PKT_DIR_OUTGOING,
 )
 from packet import (
-    Packet, 
+    Packet,
     checksum,
 )
 from parse import (
@@ -312,13 +312,13 @@ class Firewall:
                 return False
 
             dns = packet.application_header
-            
+
             # Return False if DNS packet does not contain exactly one question
             if dns.qdcount != 1:
                 return False
             # # Return False if DNS packet does not have QTYPE == A (1) or AAAA (28)
             # if dns.qtype not in [1, 28]:
-            #     return False 
+            #     return False
             # # Return False if DNS packet does not have QCLASS == INTERNET (1)
             # if dns.qclass != 1:
             #     return False
@@ -328,10 +328,11 @@ class Firewall:
         if protocol == 'http':
             if packet.application_protocol != 'http':
                 return False
-            conn = self.conns[packet.internal_port]
-            http = conn['req_header']
-            if http.host_name != "":
-                return matches_host_name(rule['host_name'], http.host_name)
+            if packet.internal_port in self.conns:
+                conn = self.conns[packet.internal_port]
+                http = conn['req_header']
+                if http.host_name != "":
+                    return matches_host_name(rule['host_name'], http.host_name)
             # Use external address if host name not supplied in HTTP header
             return matches_host(rule['host_name'], addr)
 

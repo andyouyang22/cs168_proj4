@@ -6,6 +6,7 @@ from main import (
 )
 from packet import (
     Packet,
+    HTTPHeader,
     checksum,
 )
 from parse import (
@@ -104,10 +105,7 @@ class Firewall:
             # No need to update if we are just sending an ACK
             if tcp.seq == conn['req_seq'] and http != None:
                 conn['req_seq'] = tcp.seq + http.length
-                if 'req_header' in conn:
-                    conn['req_header'].append(http.data)
-                else:
-                    conn['req_header'] = http
+                conn['req_header'].append(http.data)
             # Drop packets with forward gap in SEQ number (as per specs)
             if tcp.seq > conn['req_seq']:
                 return False
@@ -117,10 +115,7 @@ class Firewall:
             # No need to update if we are just receiving an ACK
             if tcp.seq == conn['res_seq'] and http != None:
                 conn['res_seq'] = tcp.seq + http.length
-                if 'res_header' in conn:
-                    conn['res_header'].append(http.data)
-                else:
-                    conn['res_header'] = http
+                conn['res_header'].append(http.data)
             # Drop packets with forward gap in SEQ number (as per specs)
             if tcp.seq > conn['res_seq']:
                 return False
@@ -145,10 +140,12 @@ class Firewall:
         if packet.direction == PKT_DIR_OUTGOING:
             # Next expected SEQ number to send
             conn['req_seq'] = tcp.seq + 1
+            conn['req_header'] = HTTPHeader('', packet.direction)
         # If incoming SYN packet, update expected SEQ number
         elif packet.direction == PKT_DIR_INCOMING:
             # Next expected SEQ number to receive
             conn['res_seq'] = tcp.seq + 1
+            conn['res_header'] = HTTPHeader('', packet.direction)
 
 
     def pass_packet(self, pkt, pkt_dir):
@@ -321,9 +318,10 @@ class Firewall:
                 return False
             if packet.internal_port in self.conns:
                 conn = self.conns[packet.internal_port]
-                http = conn['req_header']
-                if http.host_name != "":
-                    return matches_host_name(rule['host_name'], http.host_name)
+                if 'req_header' in conn:
+                    http = conn['req_header']
+                    if http.host_name != "":
+                        return matches_host_name(rule['host_name'], http.host_name)
             # Use external address if host name not supplied in HTTP header
             return matches_host_name(rule['host_name'], addr)
 

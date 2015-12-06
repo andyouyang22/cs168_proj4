@@ -39,12 +39,12 @@ class Packet:
         """
         if self.direction == PKT_DIR_INCOMING:
             ext_addr = self.ip_header.src_addr
-            ext_port = str(self.transport_header.src_port)
-            int_port = str(self.transport_header.dst_port)
+            ext_port = self.transport_header.src_port
+            int_port = self.transport_header.dst_port
         elif self.direction == PKT_DIR_OUTGOING:
             ext_addr = self.ip_header.dst_addr
-            ext_port = str(self.transport_header.dst_port)
-            int_port = str(self.transport_header.src_port)
+            ext_port = self.transport_header.dst_port
+            int_port = self.transport_header.src_port
         else:
             print "determining addr and port; should be unreachable"
 
@@ -82,12 +82,12 @@ class Packet:
         header = None
 
         # Note that IP and TCP header lengths are expressed in "words" (4 bytes)
-        if self.transport_protocol == 'udp' and self.external_port == '53':
+        if self.transport_protocol == 'udp' and self.external_port == 53:
             protocol = 'dns'
             header = DNSHeader(self.bytes, self.ip_header.length)
 
         # If protocol is HTTP, header will store the packet payload
-        if self.transport_protocol == 'tcp' and self.external_port == '80':
+        if self.transport_protocol == 'tcp' and self.external_port == 80:
             protocol = 'http'
             # There will be no body if the packet is just a SYN or ACK
             ip = self.ip_header.length * 4
@@ -169,7 +169,7 @@ class IPHeader:
 
         self.total_len, = struct.unpack('!H', pkt[2:4])
         self.protocol,  = struct.unpack('!B', pkt[9])
-        self._checksum,  = struct.unpack('!H', pkt[10:12])
+        self._checksum, = struct.unpack('!H', pkt[10:12])
         self.src_addr   = socket.inet_ntoa(pkt[12:16])
         self.dst_addr   = socket.inet_ntoa(pkt[16:20])
 
@@ -280,7 +280,7 @@ class UDPHeader:
         self.length,    = struct.unpack('!H', header[4:6])
         self.checksum   = struct.unpack('!H', header[6:8])
 
-    def structify(self):
+    def structify(self, ip):
         src = struct.pack("!H", self.src_port)
         dst = struct.pack("!H", self.dst_port)
         len = struct.pack("!H", self.length)
@@ -308,8 +308,8 @@ class DNSHeader:
         pkt = pkt[start:]
         self.bytes = pkt
 
-        self.qdcount = struct.unpack("!H", pkt[4:6])
-        self.ancount = struct.unpack("!H", pkt[6:8])
+        self.qdcount, = struct.unpack("!H", pkt[4:6])
+        self.ancount, = struct.unpack("!H", pkt[6:8])
         self.qname = ""
         self.answer = ""
         self.body = pkt[12:]
@@ -329,28 +329,21 @@ class DNSHeader:
                 self.qname += "."
             # Remove the extra period added at the end
             self.qname = self.qname[:-1]
-            self.qtype = struct.unpack("!H", pkt[curr:curr+2])
-            self.qclass = struct.unpack("!H", pkt[curr+2:curr+4])
+            self.qtype, = struct.unpack("!H", pkt[curr:curr+2])
+            self.qclass, = struct.unpack("!H", pkt[curr+2:curr+4])
 
         curr += 4
         self.question = pkt[12:curr]
 
-    def dns_answer(self):
-        qname_len = len(self.qname)
-        qname = binary_to_string(self.body[:qname_len]) + '\x00'
-        typ = struct.pack("!H", "A")
-        ttl = struct.pack("!I", 1)
-
-        return qname + typ + self.qclass + ttl
-
     # Note that 'ip' is not used. This is only needed to structify TCP headers, but
     # is included so that TCPHeader and UDPHeader provide the same API
-    def structify(self, ip):
+    def structify(self):
         # Set the QR field to 1
-        qfields = self.bytes[2:4]
-        qfields = qfields | 0x10
+        qfields, = struct.unpack('!H', self.bytes[2:4])
+        qfields  = qfields | 0x10
         # Set RCODE field to 0
-        qfields = qfields & 0xfc
+        qfields  = qfields & 0xfc
+        qfields  = struct.pack('!H', qfields)
         # NSCOUNT and ARCOUNT will be set to 0
         zero    = struct.pack('!H', 0x0000)
         qdcount = struct.pack('!H', self.qdcount)
@@ -436,9 +429,13 @@ class HTTPHeader:
         #print 'end is %s' % end
         tokens = self.data[:end].split(' ')
         #print "tokens is %s" % tokens
-        self.method  = tokens[0]
-        self.path    = tokens[1]
-        self.version = tokens[2]
+        print "outgoing token[0] = %s" % tokens[0]
+        if len(tokens) < 3:
+            print "outgoing: %s" % tokens
+        else:
+            self.method  = tokens[0]
+            self.path    = tokens[1]
+            self.version = tokens[2]
 
         # Find "Host" field if present
         host = self.data.find("Host:")
@@ -457,8 +454,12 @@ class HTTPHeader:
         # Parse fields in the first line (e.g. "HTTP/1.1 200 OK")
         end = self.data.find('\r\n')
         tokens = self.data[:end].split(' ')
-        self.version = tokens[0]
-        self.status_code = tokens[1]
+        print "outgoing token[0] = %s" % tokens[0]
+        if len(tokens) < 2:
+            print "incoming: %s" % tokens
+        else:
+            self.version = tokens[0]
+            self.status_code = tokens[1]
 
         # Find "Content-Length" field if present
         size = self.data.find("Content-Length:")

@@ -205,15 +205,13 @@ class Firewall:
             return
 
         # Otherwise, simulate DNS response from server
-        dst_addr = packet.src_addr
-        dst_port = packet.src_port
-        src_addr = packet.dst_addr
-        src_port = packet.dst_port
+        ip = packet.ip_header
+        tcp = packet.transport_header
 
-        packet.dst_addr = dst_addr
-        packet.dst_port = dst_port
-        packet.src_addr = src_addr
-        packet.src_port = src_port
+        ip.src_addr = packet.external_address
+        tcp.src_port = packet.external_port
+        ip.dst_addr = "10.0.2.15"
+        tcp.dst_port = packet.internal_port
 
         # Insert response record into Answer field of DNS packet
         packet.qdcount = 0
@@ -221,7 +219,7 @@ class Firewall:
 
         packet.application_header.answer = "169.229.49.130"
 
-        self.pass_packet(packet.structify, PKT_DIR_INCOMING)
+        self.pass_packet(packet.structify(), PKT_DIR_INCOMING)
 
     def log_packet(self, packet):
         """
@@ -305,21 +303,16 @@ class Firewall:
                 return False
 
             dns = packet.application_header
-            # print "------------checkpoint------------"
-            # print "dns.qdcount = %d" % dns.qdcount
-            # print "dns.qtype   = %d" % dns.qtype
-            # print "dns.qclass  = %d" % dns.qclass
-            # print "domain name = %s" % dns.qname
-
+            
             # Return False if DNS packet does not contain exactly one question
             if dns.qdcount != 1:
                 return False
-            # Return False if DNS packet does not have QTYPE == A (1) or AAAA (28)
-            if dns.qtype not in [1, 28]:
-                return False
-            # Return False if DNS packet does not have QCLASS == INTERNET (1)
-            if dns.qclass != 1:
-                return False
+            # # Return False if DNS packet does not have QTYPE == A (1) or AAAA (28)
+            # if dns.qtype not in [1, 28]:
+            #     return False 
+            # # Return False if DNS packet does not have QCLASS == INTERNET (1)
+            # if dns.qclass != 1:
+            #     return False
             return matches_domain(rule['domain_name'], dns.qname)
 
         # Handle the case where the rule has protocol HTTP

@@ -342,7 +342,7 @@ class DNSHeader:
         qfields, = struct.unpack('!H', self.bytes[2:4])
         qfields  = qfields | 0x80
         # Set RCODE field to 0
-        qfields  = qfields & 0xfc
+        qfields  = qfields & 0xf8
         qfields  = struct.pack('!H', qfields)
         # NSCOUNT and ARCOUNT will be set to 0
         zero    = struct.pack('!H', 0x0000)
@@ -351,7 +351,6 @@ class DNSHeader:
 
         nlength = len(self.qname) + 2
         name = self.question[:nlength]
-
         # TYPE = A (1)
         typ = struct.pack('!H', 0x0001)
         # CLASS = IN (1)
@@ -360,8 +359,8 @@ class DNSHeader:
         # Convert DNS answer to packed binary
         rdata = socket.inet_aton(self.answer)
         rdlength = struct.pack('!H', len(rdata))  # len(rdata) should be 4
-
         header = self.bytes[:2] + qfields + qdcount + ancount + zero + zero
+        
         answer = name + typ + cls + ttl + rdlength + rdata
 
         return header + self.question + answer

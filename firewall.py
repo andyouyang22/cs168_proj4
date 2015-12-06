@@ -223,7 +223,7 @@ class Firewall:
         tcp.dst_port = packet.internal_port
 
         # Insert response record into Answer field of DNS packet
-        packet.qdcount = 0
+        packet.qdcount = 1
         packet.ancount = 1
 
         packet.application_header.answer = "169.229.49.130"

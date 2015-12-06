@@ -333,7 +333,7 @@ class DNSHeader:
             self.qclass, = struct.unpack("!H", pkt[curr+2:curr+4])
 
         curr += 4
-        self.question = pkt[12:curr]
+        self.question = pkt[12:curr+12]
 
     # Note that 'ip' is not used. This is only needed to structify TCP headers, but
     # is included so that TCPHeader and UDPHeader provide the same API
@@ -349,8 +349,9 @@ class DNSHeader:
         qdcount = struct.pack('!H', self.qdcount)
         ancount = struct.pack('!H', self.ancount)
 
-        nlength = len(self.qname) + 1
+        nlength = len(self.qname) + 2
         name = self.question[:nlength]
+
         # TYPE = A (1)
         typ = struct.pack('!H', 1)
         # CLASS = IN (1)
@@ -426,9 +427,7 @@ class HTTPHeader:
     def parse_outgoing(self):
         # Parse fields in the first line (e.g. "GET / HTTP/1.1")
         end = self.data.find('\r\n')
-        #print 'end is %s' % end
         tokens = self.data[:end].split(' ')
-        #print "tokens is %s" % tokens
         print "outgoing token[0] = %s" % tokens[0]
         if len(tokens) < 3:
             print "outgoing: %s" % tokens

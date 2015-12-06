@@ -28,10 +28,10 @@ class Firewall:
         self.iface_ext = iface_ext
 
         # Load the firewall rules (from rule_filename) here.
-        rules = parse.rules(config['rule'])
+        self.rules = rules(config['rule'])
 
         # Load the GeoIP DB ('geoipdb.txt') as well.
-        geos = parse.geos('geoipdb.txt')
+        self.geos = geos('geoipdb.txt')
 
         # Map TCP SEQ number to corresponding persistent HTTP connection data
         self.conns = {}

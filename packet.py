@@ -104,18 +104,13 @@ class Packet:
         """
         ip = self.ip_header.structify()
         tp = self.transport_header.structify(self.ip_header)
+        ap = ''
+        if self.application_header != None:
+            ap = self.application_header.structify()
 
-        assert len(ip) + len(tp) <= self.length  # Remove later
+        assert len(ip) + len(tp) + len(ap) <= self.length  # Remove later
 
-        return ip + tp
-
-
-    def make_dns_response(self):
-        ip = self.ip_header.structify(False)
-        udp = self.transport_header.structify()
-        dns_header = self.application_header.dns_raw
-        q_and_a = self.application_header.question_and_answer_headers()
-        return "%s%s%s%s" % (ip, tp, dns_header, q_and_a)
+        return ip + tp + ap
 
     def __str__(self):
         direction = ("incoming" if self.direction == 0 else "outgoing")
@@ -265,15 +260,16 @@ class TCPHeader:
         Clones the current state of the packet header fields and returns a byte-
         string representation of the packet.
         """
-        flags = struct.pack('!B', self.flags)
-        dst = struct.pack('!H', self.dst_port)
-        src = struct.pack('!H', self.src_port)
+        flags  = struct.pack('!B', self.flags)
+        dst    = struct.pack('!H', self.dst_port)
+        src    = struct.pack('!H', self.src_port)
+        length = self.length
+        pkt    = self.bytes
 
         sum = struct.pack('!H', self.checksum(ip))
 
-        result = src + dst + self.bytes[4:13] + flags + self.bytes[14:16] + sum + self.bytes[18:]
+        return src + dst + pkt[4:13] + flags + pkt[14:16] + sum + pkt[18:length]
 
-        return result
 
 class UDPHeader:
     def __init__(self, header):
@@ -287,9 +283,11 @@ class UDPHeader:
     def structify(self):
         src = struct.pack("!H", self.src_port)
         dst = struct.pack("!H", self.dst_port)
-        leng = struct.pack("!H", self.length)
-        check = struct.pack("!H", self.checksum)
-        return "%s%s%s%s" % (src, dst, leng, check)
+        len = struct.pack("!H", self.length)
+        # Decline to list checksum by zeroing these two bytes
+        sum = struct.pack("!H", 0x0000)
+
+        return src + dst + len + sum
 
 
 
@@ -307,44 +305,79 @@ class ICMPHeader:
 class DNSHeader:
     def __init__(self, pkt, ip_header_len):
         start = (ip_header_len * 4) + 8
+        pkt = pkt[start:]
+        self.bytes = pkt
 
-        self.qdcount = struct.unpack("!H", pkt[start+4:start+6])
-        self.ancount = struct.unpack("!H", pkt[start+6:start+8])
-        self.dns_raw = pkt[start : start+12]
-        self.domain_name = ""
-        curr = start + 12
-        while True:
-            size, = struct.unpack("!B", pkt[curr])
-            curr += 1
-            if size == 0:
-                break
-            for i in range(size):
-                token, = struct.unpack("!c", pkt[curr])
-                self.domain_name += token
+        self.qdcount = struct.unpack("!H", pkt[4:6])
+        self.ancount = struct.unpack("!H", pkt[6:8])
+        self.qname = ""
+        self.answer = ""
+        self.body = pkt[12:]
+        curr = 0
+
+        # Parse for the DNS domain name in question
+        if self.qdcount > 0:
+            while True:
+                size, = struct.unpack("!B", self.body[curr])
                 curr += 1
-            self.domain_name += "."
-        self.doman_name_packed = pkt[(start + 12):curr]
-        self.domain_name = self.domain_name[:-1]
-        self.qtype = struct.unpack("!H", pkt[curr:curr+2])
-        self.qclass = struct.unpack("!H", pkt[curr+2:curr+4])
-        self.question = pkt[start+12:curr+4]
-        self.cls = pkt[curr+4+len(self.domain_name)+2 : curr+4+len(self.domain_name)+2+2]
+                if size == 0:
+                    break
+                for i in range(size):
+                    token, = struct.unpack("!c", pkt[curr])
+                    self.qname += token
+                    curr += 1
+                self.qname += "."
+            # Remove the extra period added at the end
+            self.qname = self.qname[:-1]
+            self.qtype = struct.unpack("!H", pkt[curr:curr+2])
+            self.qclass = struct.unpack("!H", pkt[curr+2:curr+4])
 
-    def make_answer(self):
+        curr += 4
+        self.question = pkt[12:curr]
+
+    def dns_answer(self):
+        qname_len = len(self.qname)
+        qname = binary_to_string(self.body[:qname_len]) + '\x00'
         typ = struct.pack("!H", "A")
         ttl = struct.pack("!I", 1)
-        answer = "%s%s%s%s" % (self.doman_name_packed, typ, self.cls, ttl)
-        return answer
 
+        return qname + typ + self.qclass + ttl
 
-    def get_questions_and_answer_headers(self):
-        return self.question + self.answer
+    # Note that 'ip' is not used. This is only needed to structify TCP headers, but
+    # is included so that TCPHeader and UDPHeader provide the same API
+    def structify(self, ip):
+        # Set the QR field to 1
+        qfields = self.bytes[2:4]
+        qfields = qfields | 0x10
+        # Set RCODE field to 0
+        qfields = qfields & 0xfc
+        # NSCOUNT and ARCOUNT will be set to 0
+        zero    = struct.pack('!H', 0x0000)
+        qdcount = struct.pack('!H', self.qdcount)
+        ancount = struct.pack('!H', self.ancount)
+
+        nlength = len(self.qname) + 1
+        name = self.question[:nlength]
+        # TYPE = A (1)
+        typ = struct.pack('!H', 1)
+        # CLASS = IN (1)
+        cls = struct.pack('!H', 1)
+        ttl = struct.pack('!I', 1)
+        # Convert DNS answer to packed binary
+        rdata = socket.inet_aton(self.answer)
+        rdlength = struct.pack('!H', len(rdata))  # len(rdata) should be 4
+
+        header = self.bytes[:2] + qfields + qdcount + ancount + zero + zero
+        answer = name + typ + cls + ttl + rdlength + rdata
+
+        return header + self.question + answer
 
 
 class HTTPHeader:
     def __init__(self, pkt, direction):
         # The contents of the HTTP packet in string form
         self.data = binary_to_string(pkt)
+        self.bytes = pkt
 
         self.direction = direction
 
@@ -391,9 +424,10 @@ class HTTPHeader:
         lines = self.data.split('\r\n')
         tokens = lines[0].split(' ')
 
-        #if self.direction == PKT_DIR_OUTGOING:
-        #    self.parse_outgoing()
-        #else:
+        if self.direction == PKT_DIR_OUTGOING:
+            self.parse_outgoing()
+        elif self.direction == PKT_DIR_INCOMING:
+            self.parse_incoming()
 
 
     def parse_outgoing(self):
@@ -437,6 +471,9 @@ class HTTPHeader:
                 # Trim leading/trailing whitespace if necessary
                 self.object_size = frag[:end].strip()
                 self.parsed = True
+
+    def structify(self):
+        return self.bytes
 
 
 def binary_to_string(binary):

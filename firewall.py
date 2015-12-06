@@ -197,15 +197,28 @@ class Firewall:
         """
         Insert documentation here.
         """
-        # If QTYPE == "AAAA", don't send response. Be done
-        if packet.application_header.qtype == "AAAA":
+        # If QTYPE == AAAA (28), don't send response. Be done
+        if packet.application_header.qtype == 28:
             return
 
-        # Otherwise, create DNS packet
-        # Send to internal interface pointing to fixed IP addr 169.229.49.130
+        # Otherwise, simulate DNS response from server
+        dst_addr = packet.src_addr
+        dst_port = packet.src_port
+        src_addr = packet.dst_addr
+        src_port = packet.dst_port
 
+        packet.dst_addr = dst_addr
+        packet.dst_port = dst_port
+        packet.src_addr = src_addr
+        packet.src_port = src_port
 
-        # self.pass_packet(packet.bytes, packet.direction)
+        # Insert response record into Answer field of DNS packet
+        packet.qdcount = 0
+        packet.ancount = 1
+
+        packet.application_header.answer = "169.229.49.130"
+
+        self.pass_packet(packet.structify, PKT_DIR_INCOMING)
 
     def log_packet(self, packet):
         """

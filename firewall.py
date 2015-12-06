@@ -206,6 +206,9 @@ class Firewall:
         """
         Insert documentation here.
         """
+        if packet.direction == PKT_DIR_INCOMING:
+            return
+
         # If QTYPE == AAAA (28), don't send response. Be done
         if packet.application_header.qtype == 28:
             return

@@ -56,7 +56,7 @@ class Firewall:
         if packet.transport_protocol == 'tcp' and packet.external_port == '80':
             # Return if the HTTP packet has a forward gap in SEQ number
             if not self.handle_http_packet(packet):
-                return
+                pass
 
         verdict = self.verdict(packet)
 
@@ -169,9 +169,6 @@ class Firewall:
         Drop the packet. Respond with a TCP packet with the RST flag set to 1. This
         will prevent the sending application from sending subsequent SYN packets.
         """
-        if packet.direction == PKT_DIR_INCOMING:
-            return
-
         ip = packet.ip_header
         tcp = packet.transport_header
 
@@ -179,13 +176,13 @@ class Firewall:
         tcp.flags = 0x14
 
         # Swap destination and source address info to send response
-        my_addr = ip.dst_addr
-        my_port = tcp.dst_port
+        src_addr = ip.dst_addr
+        src_port = tcp.dst_port
         dst_addr = ip.src_addr
         dst_port = tcp.src_port
 
-        ip.src_addr = my_addr
-        tcp.src_port = my_port
+        ip.src_addr = src_addr
+        tcp.src_port = src_port
         ip.dst_addr = dst_addr
         tcp.dst_port = dst_port
 
@@ -197,7 +194,7 @@ class Firewall:
         d, = struct.unpack('!B', b[i+13])
 
         # Convert the packet to a packed binary and send response to source
-        self.pass_packet(packet.structify(), PKT_DIR_INCOMING)
+        self.pass_packet(packet.structify(), 1-packet.direction)
 
     def denydns_packet(self, packet):
         """

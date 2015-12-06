@@ -108,8 +108,6 @@ class Packet:
         if self.application_header != None:
             ap = self.application_header.structify()
 
-        assert len(ip) + len(tp) + len(ap) == self.length  # Remove later
-
         return ip + tp + ap
 
     def __str__(self):

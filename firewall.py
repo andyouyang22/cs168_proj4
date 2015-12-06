@@ -305,6 +305,12 @@ class Firewall:
                 return False
 
             dns = packet.application_header
+            # print "------------checkpoint------------"
+            # print "dns.qdcount = %d" % dns.qdcount
+            # print "dns.qtype   = %d" % dns.qtype
+            # print "dns.qclass  = %d" % dns.qclass
+            # print "domain name = %s" % dns.qname
+
             # Return False if DNS packet does not contain exactly one question
             if dns.qdcount != 1:
                 return False
@@ -314,7 +320,7 @@ class Firewall:
             # Return False if DNS packet does not have QCLASS == INTERNET (1)
             if dns.qclass != 1:
                 return False
-            return matches_domain(rule['domain_name'], dns.domain_name)
+            return matches_domain(rule['domain_name'], dns.qname)
 
         # Handle the case where the rule has protocol HTTP
         if protocol == 'http':

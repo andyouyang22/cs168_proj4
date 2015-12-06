@@ -323,7 +323,7 @@ class DNSHeader:
                 if size == 0:
                     break
                 for i in range(size):
-                    token, = struct.unpack("!c", pkt[curr])
+                    token, = struct.unpack("!c", self.body[curr])
                     self.qname += token
                     curr += 1
                 self.qname += "."

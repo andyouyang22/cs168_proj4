@@ -4,8 +4,14 @@ from main import (
     PKT_DIR_INCOMING,
     PKT_DIR_OUTGOING,
 )
-from packet import Packet, checksum
-import parse
+from packet import (
+    Packet, 
+    checksum,
+)
+from parse import (
+    rules,
+    geos,
+)
 import socket
 import struct
 
@@ -22,10 +28,10 @@ class Firewall:
         self.iface_ext = iface_ext
 
         # Load the firewall rules (from rule_filename) here.
-        self.rules = parse.rules(config['rule'])
+        rules = parse.rules(config['rule'])
 
         # Load the GeoIP DB ('geoipdb.txt') as well.
-        self.geos = parse.geos('geoipdb.txt')
+        geos = parse.geos('geoipdb.txt')
 
         # Map TCP SEQ number to corresponding persistent HTTP connection data
         self.conns = {}

@@ -48,18 +48,9 @@ class Firewall:
     def handle_packet(self, pkt_dir, pkt):
         # TODO: Your main firewall code will be here.
         packet = Packet(pkt, pkt_dir)
-
-        # ip = packet.ip_header
-        # tcp = packet.transport_header
-        # print "ip.checksum()  = %d" % ip.checksum()
-        # print "ip._checksum   = %d" % ip._checksum
-        # if packet.transport_protocol == 'tcp':
-        #     print "tcp.checksum() = %d" % tcp.checksum(ip)
-        #     print "tcp._checksum  = %d" % tcp._checksum
-
         # If the packet is an HTTP packet, assemble this packet's payload with the
         # rest of the data received from this TCP connection.
-        if packet.transport_protocol == 'tcp' and packet.external_port == '80':
+        if packet.transport_protocol == 'tcp' and packet.external_port == 80:
             # Return if the HTTP packet has a forward gap in SEQ number
             if not self.handle_http_packet(packet):
                 pass
